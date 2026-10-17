@@ -89,6 +89,7 @@
     }
 
     async function init() {
+      aleart("init call★");
       fillTimes();
       try {
         await liff.init({ liffId: LIFF_ID });
