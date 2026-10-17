@@ -96,14 +96,17 @@
         if (!liff.isLoggedIn()) { liff.login(); return; }
         const profile = await liff.getProfile();
         const idToken = liff.getIDToken();
+        if (!idToken) throw new Error('LINEのログイン情報を取得できませんでした。');
 
         const claims = liff.getDecodedIDToken();
+        if (!claims || !claims.iat || !claims.exp) {
+          throw new Error('IDトークンの発行時刻・有効期限を取得できませんでした。');
+        }
         alert(
           '発行: ' + new Date(claims.iat * 1000).toLocaleString() +
           '\n期限: ' + new Date(claims.exp * 1000).toLocaleString()
         );
 
-        if (!idToken) throw new Error('LINEのログイン情報を取得できませんでした。');
         document.getElementById('displayName').textContent = profile.displayName;
         alert("init callGAS before★");
         const result = await callGAS({ action: 'findToday', idToken: idToken });
