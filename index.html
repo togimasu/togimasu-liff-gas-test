@@ -1,686 +1,146 @@
-<!DOCTYPE html>
-<html>
-
+<!doctype html>
+<html lang="ja">
 <head>
-
-  <meta charset="UTF-8">
-
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1">
-
-  <title>申込情報</title>
-
-  <!-- LIFF SDK -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f4ef">
+  <title>包丁研ぎのお申込み</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-
   <style>
-
-    body {
-      font-family: sans-serif;
-      margin: 20px;
-      background: #f7f7f7;
-    }
-
-    h1 {
-      font-size: 22px;
-    }
-
-    .box {
-      background: white;
-      padding: 16px;
-      margin-bottom: 20px;
-      border-radius: 10px;
-    }
-
-    label {
-      display: block;
-      margin-top: 12px;
-      font-weight: bold;
-    }
-
-    input {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 10px;
-      margin-top: 5px;
-      font-size: 16px;
-    }
-
-    input[readonly] {
-      background: #eeeeee;
-    }
-
-    button {
-      padding: 10px 16px;
-      margin-top: 15px;
-      margin-right: 5px;
-      font-size: 15px;
-      border: none;
-      border-radius: 6px;
-    }
-
-    .record {
-      background: white;
-      padding: 15px;
-      margin-bottom: 10px;
-      border-radius: 10px;
-    }
-
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Noto Sans JP", sans-serif; color: #252923; background: #f6f4ef; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 16px calc(32px + env(safe-area-inset-bottom)); }
+    main { width: min(100%, 520px); margin: 0 auto; }
+    h1 { margin: 8px 0 6px; font-size: 24px; }
+    .intro, .hint { color: #646b62; font-size: 14px; line-height: 1.6; }
+    .card { margin-top: 20px; padding: 22px 18px; border-radius: 16px; background: white; box-shadow: 0 4px 18px #26331a12; }
+    label { display: block; margin: 18px 0 7px; font-size: 14px; font-weight: 700; }
+    .value, input, select, textarea { width: 100%; border: 1px solid #d8ddd4; border-radius: 9px; background: #fff; padding: 12px; font: inherit; font-size: 16px; }
+    .value { min-height: 46px; background: #f4f5f2; overflow-wrap: anywhere; }
+    textarea { min-height: 110px; resize: vertical; }
+    button { width: 100%; margin-top: 22px; padding: 14px 16px; border: 0; border-radius: 10px; background: #426b3e; color: white; font: inherit; font-size: 16px; font-weight: 700; }
+    button:disabled { opacity: .55; }
+    .status { padding: 16px 4px; color: #596158; }
+    .error { color: #a12e25; }
+    .success { color: #276139; }
+    .row { padding: 14px 0; border-bottom: 1px solid #eceee9; }
+    .row:last-child { border-bottom: 0; }
+    .key { margin-bottom: 5px; color: #687065; font-size: 13px; }
+    .data { white-space: pre-wrap; overflow-wrap: anywhere; }
+    [hidden] { display: none !important; }
   </style>
-
 </head>
-
-
 <body>
+  <main>
+    <h1>包丁研ぎのお申込み</h1>
+    <p class="intro">ご希望の受取り時間を選んでお申込みください。</p>
+    <p id="status" class="status" role="status" aria-live="polite">LINEの情報を確認しています…</p>
 
+    <section id="entry" class="card" hidden>
+      <label>LINE表示名</label><div id="displayName" class="value"></div>
+      <label for="applicationNo">申込番号</label><input id="applicationNo" type="text" readonly value="" placeholder="お申込み時に自動で発行します">
+      <label for="pickupTime">受取り希望時間</label>
+      <select id="pickupTime"></select>
+      <label for="notes">備考</label>
+      <textarea id="notes" maxlength="1000" placeholder="ご要望があれば入力してください"></textarea>
+      <button id="submitButton" type="button">申込む</button>
+    </section>
 
-<h1>申込情報</h1>
+    <section id="confirmation" class="card" hidden>
+      <h2>お申込み済みです</h2>
+      <p class="intro">申込内容をご確認ください。</p>
+      <div class="row"><div class="key">申込番号</div><div id="confirmNo" class="data"></div></div>
+      <div class="row"><div class="key">申込日</div><div id="confirmDate" class="data"></div></div>
+      <div class="row"><div class="key">LINE表示名</div><div id="confirmName" class="data"></div></div>
+      <div class="row"><div class="key">受取り希望時間</div><div id="confirmTime" class="data"></div></div>
+      <div class="row"><div class="key">備考</div><div id="confirmNotes" class="data"></div></div>
+      <div class="row"><div class="key">作業状況</div><div id="confirmStatus" class="data"></div></div>
+    </section>
+  </main>
 
+  <script>
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzxseejcXgVipPOB2hO_vs8KCeMe3BB8EqUBIuv_jGptRiJiyoVW6QmLbZmolrbomFDsA/exec';
+    const LIFF_ID = '2011920848-fdZ0JLEN';
+    const statusEl = document.getElementById('status');
 
-<div class="box">
-
-  <!-- 申込番号 -->
-
-  <label>申込番号</label>
-
-  <input
-    id="applicationNo"
-    type="text"
-    placeholder="例：0001"
-  >
-
-
-  <!-- LINE ID -->
-
-  <label>LINE ID</label>
-
-  <input
-    id="lineId"
-    type="text"
-    readonly
-  >
-
-
-  <!-- LINE表示名 -->
-
-  <label>LINE表示名</label>
-
-  <input
-    id="displayName"
-    type="text"
-    readonly
-  >
-
-
-  <button onclick="createRecord()">
-    登録
-  </button>
-
-  <button onclick="updateRecord()">
-    更新
-  </button>
-
-  <button onclick="clearForm()">
-    クリア
-  </button>
-
-</div>
-
-
-<div class="box">
-
-  <h2>申込一覧</h2>
-
-  <div id="list">
-    読み込み中...
-  </div>
-
-</div>
-
-
-<script>
-
-
-// ==================================================
-// 設定
-// ==================================================
-
-const GAS_URL =
-  'https://script.google.com/macros/s/AKfycbzxseejcXgVipPOB2hO_vs8KCeMe3BB8EqUBIuv_jGptRiJiyoVW6QmLbZmolrbomFDsA/exec';
-
-const LIFF_ID =
-  '2011920848-fdZ0JLEN';
-
-
-// ==================================================
-// 初期処理
-// ==================================================
-
-async function init() {
-
-  try {
-
-    alert('② liff.init開始');
-
-    const timeout = new Promise((_, reject) => {
-
-      setTimeout(() => {
-
-        reject(
-          new Error(
-            'liff.init()が10秒以内に完了しませんでした'
-          )
-        );
-
-      }, 10000);
-
-    });
-    
-    const liffInit = liff.init({
-      liffId: LIFF_ID
-    });
-
-    alert('②-2 liff.init呼び出し直後');
-
-    await Promise.race([
-      liffInit,
-      timeout
-    ]);
-
-    alert('③ liff.init成功');
-
-    alert('② liff.init完了');
-
-    await Promise.race([
-      liffInit,
-      timeout
-    ]);
-
-
-    alert('③ liff.init成功');
-
-
-    // LINEログイン状態確認
-    if (!liff.isLoggedIn()) {
-
-      alert('④ LINEログインが必要です');
-
-      liff.login();
-
-      return;
-
+    function setStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.classList.toggle('error', isError);
     }
 
-
-    alert('⑤ LINEログイン済み');
-
-
-    // LINEプロフィール取得
-    const profile =
-      await liff.getProfile();
-
-
-    alert('⑥ プロフィール取得成功');
-
-
-    // LINE IDを自動設定
-    document.getElementById(
-      'lineId'
-    ).value =
-      profile.userId;
-
-
-    // LINE表示名を自動設定
-    document.getElementById(
-      'displayName'
-    ).value =
-      profile.displayName;
-
-
-    // データ一覧取得
-    loadRecords();
-
-
-  } catch (error) {
-
-    alert(
-      'LIFF処理エラー\n\n' +
-      'name: ' + error.name + '\n' +
-      'message: ' + error.message
-    );
-
-    console.error(error);
-
-  }
-
-}
-
-// ==================================================
-// GAS通信
-// ==================================================
-
-async function callGAS(data) {
-  console.log('★★★ GAS送信開始 ★★★');
-  console.log('GAS URL:', GAS_URL);
-  console.log('送信データ:', data);
-  const response = await fetch(
-    GAS_URL,
-    {
-      method: 'POST',
-      body: JSON.stringify(data)
-    }
-  );
-
-  return await response.json();
-
-}
-
-
-// ==================================================
-// CREATE
-// ==================================================
-
-async function createRecord() {
-
-  const applicationNo =
-    document.getElementById(
-      'applicationNo'
-    ).value.trim();
-
-
-  const lineId =
-    document.getElementById(
-      'lineId'
-    ).value;
-
-
-  const displayName =
-    document.getElementById(
-      'displayName'
-    ).value;
-
-
-  // 申込番号チェック
-  if (!applicationNo) {
-
-    alert(
-      '申込番号を入力してください'
-    );
-
-    return;
-  }
-
-
-  // LINE IDチェック
-  if (!lineId) {
-
-    alert(
-      'LINE IDを取得できていません'
-    );
-
-    return;
-  }
-
-
-  const result =
-    await callGAS({
-
-      action: 'create',
-
-      applicationNo:
-        applicationNo,
-
-      lineId:
-        lineId,
-
-      displayName:
-        displayName
-
-    });
-
-
-  alert(result.message);
-
-
-  if (result.success) {
-
-    clearForm();
-
-    // LINE情報を再設定
-    setLineProfile();
-
-    loadRecords();
-
-  }
-
-}
-
-
-// ==================================================
-// READ
-// ==================================================
-
-async function loadRecords() {
-
-  try {
-
-    const result =
-      await callGAS({
-
-        action: 'read'
-
+    function fillTimes() {
+      const select = document.getElementById('pickupTime');
+      [['希望なし', '希望なし']].concat(Array.from({ length: 17 }, (_, i) => {
+        const minutes = 12 * 60 + i * 30;
+        return [`${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`, `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`];
+      })).forEach(([label, value]) => {
+        const option = document.createElement('option'); option.value = value; option.textContent = label; select.appendChild(option);
       });
-
-
-    if (!result.success) {
-
-      alert(result.message);
-
-      return;
     }
 
-
-    const list =
-      document.getElementById(
-        'list'
-      );
-
-
-    list.innerHTML = '';
-
-
-    if (
-      result.records.length === 0
-    ) {
-
-      list.innerHTML =
-        '<p>登録データがありません</p>';
-
-      return;
+    async function callGAS(payload) {
+      const response = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error('サーバーとの通信に失敗しました。');
+      return response.json();
     }
 
-
-    result.records.forEach(
-      record => {
-
-        const div =
-          document.createElement(
-            'div'
-          );
-
-        div.className =
-          'record';
-
-
-        div.innerHTML = `
-
-          <strong>
-            申込番号：
-            ${escapeHtml(
-              record.applicationNo
-            )}
-          </strong>
-
-          <br>
-
-          LINE表示名：
-          ${escapeHtml(
-            record.displayName
-          )}
-
-          <br>
-
-          <button
-            onclick='selectRecord(
-              ${JSON.stringify(record)}
-            )'>
-            編集
-          </button>
-
-          <button
-            onclick='deleteRecord(
-              "${escapeHtml(
-                record.applicationNo
-              )}"
-            )'>
-            削除
-          </button>
-
-        `;
-
-
-        list.appendChild(div);
-
+    async function init() {
+      fillTimes();
+      try {
+        await liff.init({ liffId: LIFF_ID });
+        if (!liff.isLoggedIn()) { liff.login(); return; }
+        const profile = await liff.getProfile();
+        const idToken = liff.getIDToken();
+        if (!idToken) throw new Error('LINEのログイン情報を取得できませんでした。');
+        document.getElementById('displayName').textContent = profile.displayName;
+        const result = await callGAS({ action: 'findToday', idToken: idToken });
+        if (!result.success) throw new Error(result.message || '申込状況を確認できませんでした。');
+        statusEl.hidden = true;
+        if (result.record) showConfirmation(result.record);
+        else {
+          document.getElementById('entry').hidden = false;
+          document.getElementById('submitButton').addEventListener('click', () => submitApplication(profile, idToken));
+        }
+      } catch (error) {
+        setStatus(`${error.message || '処理に失敗しました。'} 画面を再読み込みしてください。`, true);
+        console.error(error);
       }
-    );
-
-
-  } catch (error) {
-
-    console.error(error);
-
-  }
-
-}
-
-
-// ==================================================
-// UPDATE
-// ==================================================
-
-async function updateRecord() {
-
-  const applicationNo =
-    document.getElementById(
-      'applicationNo'
-    ).value.trim();
-
-
-  const lineId =
-    document.getElementById(
-      'lineId'
-    ).value;
-
-
-  const displayName =
-    document.getElementById(
-      'displayName'
-    ).value;
-
-
-  if (!applicationNo) {
-
-    alert(
-      '申込番号を入力してください'
-    );
-
-    return;
-  }
-
-
-  const result =
-    await callGAS({
-
-      action: 'update',
-
-      applicationNo:
-        applicationNo,
-
-      lineId:
-        lineId,
-
-      displayName:
-        displayName
-
-    });
-
-
-  alert(result.message);
-
-
-  if (result.success) {
-
-    clearForm();
-
-    setLineProfile();
-
-    loadRecords();
-
-  }
-
-}
-
-
-// ==================================================
-// DELETE
-// ==================================================
-
-async function deleteRecord(
-  applicationNo
-) {
-
-  if (
-    !confirm(
-      '申込番号 ' +
-      applicationNo +
-      ' を削除しますか？'
-    )
-  ) {
-
-    return;
-
-  }
-
-
-  const result =
-    await callGAS({
-
-      action: 'delete',
-
-      applicationNo:
-        applicationNo
-
-    });
-
-
-  alert(result.message);
-
-
-  if (result.success) {
-
-    loadRecords();
-
-  }
-
-}
-
-
-// ==================================================
-// 編集
-// ==================================================
-
-function selectRecord(record) {
-
-  document.getElementById(
-    'applicationNo'
-  ).value =
-    record.applicationNo;
-
-
-  document.getElementById(
-    'lineId'
-  ).value =
-    record.lineId;
-
-
-  document.getElementById(
-    'displayName'
-  ).value =
-    record.displayName;
-
-}
-
-
-// ==================================================
-// クリア
-// ==================================================
-
-function clearForm() {
-
-  document.getElementById(
-    'applicationNo'
-  ).value = '';
-
-}
-
-
-// ==================================================
-// LINEプロフィール設定
-// ==================================================
-
-async function setLineProfile() {
-
-  const profile =
-    await liff.getProfile();
-
-
-  document.getElementById(
-    'lineId'
-  ).value =
-    profile.userId;
-
-
-  document.getElementById(
-    'displayName'
-  ).value =
-    profile.displayName;
-
-}
-
-
-// ==================================================
-// HTMLエスケープ
-// ==================================================
-
-function escapeHtml(value) {
-
-  return String(value)
-
-    .replace(
-      /&/g,
-      '&amp;'
-    )
-
-    .replace(
-      /</g,
-      '&lt;'
-    )
-
-    .replace(
-      />/g,
-      '&gt;'
-    )
-
-    .replace(
-      /"/g,
-      '&quot;'
-    )
-
-    .replace(
-      /'/g,
-      '&#039;'
-    );
-
-}
-
-
-// ==================================================
-// 起動
-// ==================================================
-init();
-</script>
-
-
+    }
+
+    function showConfirmation(record) {
+      document.getElementById('confirmNo').textContent = record.applicationNo;
+      document.getElementById('confirmDate').textContent = record.applicationDate;
+      document.getElementById('confirmName').textContent = record.displayName;
+      document.getElementById('confirmTime').textContent = record.pickupTime;
+      document.getElementById('confirmNotes').textContent = record.notes || 'なし';
+      document.getElementById('confirmStatus').textContent = record.workStatus;
+      document.getElementById('confirmation').hidden = false;
+    }
+
+    async function submitApplication(profile, idToken) {
+      const button = document.getElementById('submitButton');
+      button.disabled = true;
+      button.textContent = '申込中…';
+      try {
+        const result = await callGAS({
+          action: 'create', idToken: idToken, lineId: profile.userId, displayName: profile.displayName,
+          pickupTime: document.getElementById('pickupTime').value,
+          notes: document.getElementById('notes').value.trim()
+        });
+        if (!result.success) throw new Error(result.message || '申込みに失敗しました。');
+        location.reload();
+      } catch (error) {
+        setStatus(`${error.message || '申込みに失敗しました。'} 入力内容を確認して再度お試しください。`, true);
+        button.disabled = false;
+        button.textContent = '申込む';
+      }
+    }
+
+    init();
+  </script>
 </body>
-
 </html>

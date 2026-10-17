@@ -1,204 +1,151 @@
 const SHEET_NAME = '申込情報';
+const HEADERS = ['申込番号', '申込日時', 'LINE表示名', 'LINE ID', '受取り希望時間', '備考', '作業状況'];
+const TIME_ZONE = 'Asia/Tokyo';
 
-/**
- * LIFF画面を表示
- */
+/** LIFF画面をGASから直接表示する場合の入口。 */
 function doGet() {
-  console.log("スタート！")
-  return HtmlService
-    .createHtmlOutputFromFile('index')
-    .setTitle('申込情報');
+  return HtmlService.createHtmlOutputFromFile('index').setTitle('包丁研ぎのお申込み');
 }
 
-
-/**
- * POST処理
- */
+/** GitHub Pages上のLIFF画面からのAPI要求を処理する。 */
 function doPost(e) {
-  console.log("スタート２！")
-
   try {
-
-    const data = JSON.parse(e.postData.contents);
-
+    const data = JSON.parse(e.postData.contents || '{}');
+    const identity = verifyLiffToken(data.idToken);
+    let result;
     switch (data.action) {
-
+      case 'findToday':
+        result = findToday(identity.userId);
+        break;
       case 'create':
-        return createRecord(data);
-
-      case 'read':
-        return readRecords();
-
-      case 'update':
-        return updateRecord(data);
-
-      case 'delete':
-        return deleteRecord(data);
-
+        data.lineId = identity.userId;
+        data.displayName = identity.displayName || data.displayName;
+        result = createApplication(data);
+        break;
       default:
-        return response({
-          success: false,
-          message: '不正なactionです'
-        });
+        result = { success: false, message: '不正な操作です。' };
     }
-
+    return response(result);
   } catch (error) {
-
-    return response({
-      success: false,
-      message: error.message
-    });
-
+    console.error(error);
+    return response({ success: false, message: error.message || 'サーバー処理に失敗しました。' });
   }
 }
 
+/** LIFF IDトークンをLINEで検証し、ユーザーIDをサーバー側で確定する。 */
+function verifyLiffToken(idToken) {
+  if (!idToken) throw new Error('LINEの認証情報がありません。LIFFを開き直してください。');
+  const channelId = '2011920848';
+  const url = 'https://api.line.me/oauth2/v2.1/verify?id_token=' + encodeURIComponent(idToken) + '&client_id=' + channelId;
+  const result = UrlFetchApp.fetch(url, { method: 'get', muteHttpExceptions: true });
+  if (result.getResponseCode() !== 200) throw new Error('LINEの認証を確認できませんでした。LIFFを開き直してください。');
+  const profile = JSON.parse(result.getContentText());
+  if (!profile.sub) throw new Error('LINEユーザーを確認できませんでした。');
+  return { userId: profile.sub, displayName: profile.name || '' };
+}
 
-/**
- * CREATE
- * 新規登録
- */
-function createRecord(data) {
-
-  const sheet = getSheet();
-
-  // 申込番号の重複チェック
-  const values = sheet.getDataRange().getValues();
-
-  for (let i = 1; i < values.length; i++) {
-
-    if (String(values[i][0]) === String(data.applicationNo)) {
-
-      return response({
-        success: false,
-        message: 'この申込番号は既に登録されています'
-      });
-
+/** 本日、指定LINE IDで申込済みかを確認する。 */
+function findToday(lineId) {
+  if (!lineId) return { success: false, message: 'LINE IDを取得できませんでした。' };
+  const today = todayKey();
+  const rows = getSheet().getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][3]) === String(lineId) && dateKey(rows[i][1]) === today) {
+      return { success: true, record: rowToRecord(rows[i]) };
     }
   }
-
-  sheet.appendRow([
-    data.applicationNo,
-    data.lineId,
-    data.displayName
-  ]);
-
-  return response({
-    success: true,
-    message: '登録しました'
-  });
+  return { success: true, record: null };
 }
 
+/** 申込番号を採番して、本日の申込として登録する。 */
+function createApplication(data) {
+  if (!data.lineId || !data.displayName) throw new Error('LINEのプロフィールを取得できませんでした。');
+  const pickupTime = String(data.pickupTime || '');
+  if (!isValidPickupTime(pickupTime)) throw new Error('受取り希望時間を選択し直してください。');
 
-/**
- * READ
- * 全件取得
- */
-function readRecords() {
-
-  const sheet = getSheet();
-
-  const values = sheet.getDataRange().getValues();
-
-  const records = [];
-
-  for (let i = 1; i < values.length; i++) {
-
-    if (values[i][0] === '') {
-      continue;
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = getSheet();
+    const today = todayKey();
+    const rows = sheet.getDataRange().getValues();
+    let sequence = 0;
+    for (let i = 1; i < rows.length; i++) {
+      if (String(rows[i][3]) === String(data.lineId) && dateKey(rows[i][1]) === today) {
+        return { success: true, record: rowToRecord(rows[i]) };
+      }
+      const existingNo = String(rows[i][0] || '');
+      const match = existingNo.match(new RegExp('^' + today + '-(\\d+)$'));
+      if (match) sequence = Math.max(sequence, Number(match[1]));
     }
 
-    records.push({
-      applicationNo: String(values[i][0]),
-      lineId: String(values[i][1]),
-      displayName: String(values[i][2])
-    });
+    const record = {
+      applicationNo: today + '-' + String(sequence + 1).padStart(3, '0'),
+      applicationDate: today,
+      displayName: String(data.displayName).slice(0, 100),
+      lineId: String(data.lineId),
+      pickupTime: pickupTime,
+      notes: String(data.notes || '').slice(0, 1000),
+      workStatus: '受付済み'
+    };
+    sheet.appendRow([
+      record.applicationNo, record.applicationDate, record.displayName,
+      record.lineId, record.pickupTime, record.notes, record.workStatus
+    ]);
+    return { success: true, record: record };
+  } finally {
+    lock.releaseLock();
   }
-
-  return response({
-    success: true,
-    records: records
-  });
 }
 
-
-/**
- * UPDATE
- * 申込番号をキーに更新
- */
-function updateRecord(data) {
-
-  const sheet = getSheet();
-
-  const values = sheet.getDataRange().getValues();
-
-  for (let i = 1; i < values.length; i++) {
-
-    if (String(values[i][0]) === String(data.applicationNo)) {
-
-      sheet.getRange(i + 1, 2).setValue(data.lineId);
-      sheet.getRange(i + 1, 3).setValue(data.displayName);
-
-      return response({
-        success: true,
-        message: '更新しました'
-      });
-    }
-  }
-
-  return response({
-    success: false,
-    message: '対象の申込番号がありません'
-  });
-}
-
-
-/**
- * DELETE
- * 申込番号をキーに削除
- */
-function deleteRecord(data) {
-
-  const sheet = getSheet();
-
-  const values = sheet.getDataRange().getValues();
-
-  for (let i = 1; i < values.length; i++) {
-
-    if (String(values[i][0]) === String(data.applicationNo)) {
-
-      sheet.deleteRow(i + 1);
-
-      return response({
-        success: true,
-        message: '削除しました'
-      });
-    }
-  }
-
-  return response({
-    success: false,
-    message: '対象の申込番号がありません'
-  });
-}
-
-
-/**
- * スプレッドシート取得
- */
 function getSheet() {
-
-  return SpreadsheetApp
-    .getActiveSpreadsheet()
-    .getSheetByName(SHEET_NAME);
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = spreadsheet.getSheetByName(SHEET_NAME);
+  if (!sheet) sheet = spreadsheet.insertSheet(SHEET_NAME);
+  if (sheet.getLastRow() === 0) sheet.appendRow(HEADERS);
+  else {
+    const current = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), HEADERS.length)).getValues()[0];
+    const sampleHeader = ['申込番号', 'LINE ID', 'LINE表示名'];
+    if (sampleHeader.every((value, index) => String(current[index] || '') === value)) {
+      sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+    } else if (!HEADERS.every((value, index) => String(current[index] || '') === value)) {
+      throw new Error('「申込情報」シートの1行目を申込項目の見出しにしてください。');
+    }
+  }
+  return sheet;
 }
 
+function todayKey() {
+  return Utilities.formatDate(new Date(), TIME_ZONE, 'yyyyMMdd');
+}
 
-/**
- * JSONレスポンス
- */
+function dateKey(value) {
+  if (value instanceof Date) return Utilities.formatDate(value, TIME_ZONE, 'yyyyMMdd');
+  return String(value || '').replace(/[^0-9]/g, '').slice(0, 8);
+}
+
+function isValidPickupTime(value) {
+  if (value === '希望なし') return true;
+  const match = value.match(/^(\d{2}):(00|30)$/);
+  if (!match) return false;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  return (hour > 12 || (hour === 12 && minute === 0)) && (hour < 20 || (hour === 20 && minute === 0));
+}
+
+function rowToRecord(row) {
+  return {
+    applicationNo: String(row[0]),
+    applicationDate: dateKey(row[1]),
+    displayName: String(row[2] || ''),
+    lineId: String(row[3] || ''),
+    pickupTime: String(row[4] || '希望なし'),
+    notes: String(row[5] || ''),
+    workStatus: String(row[6] || '受付済み')
+  };
+}
+
 function response(data) {
-
-  return ContentService
-    .createTextOutput(JSON.stringify(data))
+  return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
 }
