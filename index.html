@@ -97,7 +97,9 @@
         const idToken = liff.getIDToken();
         if (!idToken) throw new Error('LINEのログイン情報を取得できませんでした。');
         document.getElementById('displayName').textContent = profile.displayName;
+        aleart("init callGAS before★");
         const result = await callGAS({ action: 'findToday', idToken: idToken });
+        aleart("init callGAS after★");
         if (!result.success) throw new Error(result.message || '申込状況を確認できませんでした。');
         statusEl.hidden = true;
         if (result.record) showConfirmation(result.record);

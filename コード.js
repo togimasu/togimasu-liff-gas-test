@@ -10,9 +10,11 @@ function doGet() {
 /** GitHub Pages上のLIFF画面からのAPI要求を処理する。 */
 function doPost(e) {
   try {
+    console.log("★doPost Start★");
     const data = JSON.parse(e.postData.contents || '{}');
     const identity = verifyLiffToken(data.idToken);
     let result;
+    console.log("★doPost ★★" + data);
     switch (data.action) {
       case 'findToday':
         result = findToday(identity.userId);
@@ -46,6 +48,8 @@ function verifyLiffToken(idToken) {
 
 /** 本日、指定LINE IDで申込済みかを確認する。 */
 function findToday(lineId) {
+  console.log("★findToday★");
+  
   if (!lineId) return { success: false, message: 'LINE IDを取得できませんでした。' };
   const today = todayKey();
   const rows = getSheet().getDataRange().getValues();
