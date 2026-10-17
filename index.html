@@ -100,34 +100,24 @@
     }
 
     async function init() {
-      alert("init call★");
       fillTimes();
       try {
         await liff.init({ liffId: LIFF_ID });
         if (!liff.isLoggedIn()) { liff.login(); return; }
-        const profile = await liff.getProfile();
         const idToken = liff.getIDToken();
         if (!idToken) throw new Error('LINEのログイン情報を取得できませんでした。');
 
         const claims = liff.getDecodedIDToken();
-        if (!claims || !claims.iat || !claims.exp) {
-          throw new Error('IDトークンの発行時刻・有効期限を取得できませんでした。');
-        }
-        alert(
-          '発行: ' + new Date(claims.iat * 1000).toLocaleString() +
-          '\n期限: ' + new Date(claims.exp * 1000).toLocaleString()
-        );
+        if (!claims || !claims.name) throw new Error('LINE表示名をIDトークンから取得できませんでした。');
 
-        document.getElementById('displayName').textContent = profile.displayName;
-        alert("init callGAS before★");
+        document.getElementById('displayName').textContent = claims.name;
         const result = await callGAS({ action: 'findToday', idToken: idToken });
-        alert("init callGAS after★" + result);
         if (!result.success) throw new Error(result.message || '申込状況を確認できませんでした。');
         statusEl.hidden = true;
         if (result.record) showConfirmation(result.record);
         else {
           document.getElementById('entry').hidden = false;
-          document.getElementById('submitButton').addEventListener('click', () => submitApplication(profile, idToken));
+          document.getElementById('submitButton').addEventListener('click', () => submitApplication(idToken));
         }
       } catch (error) {
         setStatus(`${error.message || '処理に失敗しました。'} 画面を再読み込みしてください。`, true);
@@ -139,10 +129,16 @@
       document.getElementById('confirmNo').textContent = record.applicationNo;
       document.getElementById('confirmDate').textContent = record.applicationDate;
       document.getElementById('confirmName').textContent = record.displayName;
-      document.getElementById('confirmTime').textContent = record.pickupTime;
+      document.getElementById('confirmTime').textContent = formatPickupDateTime(record);
       document.getElementById('confirmNotes').textContent = record.notes || 'なし';
       document.getElementById('confirmStatus').textContent = record.workStatus;
       document.getElementById('confirmation').hidden = false;
+    }
+
+    function formatPickupDateTime(record) {
+      if (record.pickupTime === '希望なし') return '希望なし';
+      const date = String(record.applicationDate || '').replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
+      return date ? `${date} ${record.pickupTime}` : record.pickupTime;
     }
 
     function openNumberZoom() {
@@ -170,13 +166,13 @@
       }
     });
 
-    async function submitApplication(profile, idToken) {
+    async function submitApplication(idToken) {
       const button = document.getElementById('submitButton');
       button.disabled = true;
       button.textContent = '申込中…';
       try {
         const result = await callGAS({
-          action: 'create', idToken: idToken, lineId: profile.userId, displayName: profile.displayName,
+          action: 'create', idToken: idToken,
           pickupTime: document.getElementById('pickupTime').value,
           notes: document.getElementById('notes').value.trim()
         });
