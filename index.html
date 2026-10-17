@@ -158,8 +158,6 @@ const LIFF_ID =
 
 async function init() {
 
-  alert('① init開始');
-
   try {
 
     alert('② liff.init開始');
@@ -178,34 +176,20 @@ async function init() {
 
     });
     
-    try {
-      alert('②-1 liff.init呼び出し直前');
-alert(
-  '現在URL:\n' +
-  window.location.href
-);
-      const liffInit = liff.init({
-        liffId: LIFF_ID
-      });
+    const liffInit = liff.init({
+      liffId: LIFF_ID
+    });
 
-      alert('②-2 liff.init呼び出し直後');
+    alert('②-2 liff.init呼び出し直後');
 
-      await Promise.race([
-        liffInit,
-        timeout
-      ]);
+    await Promise.race([
+      liffInit,
+      timeout
+    ]);
 
-      alert('③ liff.init成功');
-    } catch (error) {
-      alert(
-        'LIFF処理エラー\n\n' +
-        'name: ' + error.name + '\n' +
-        'message: ' + error.message
-      );
+    alert('③ liff.init成功');
 
-    }
-
-alert('② liff.init完了');
+    alert('② liff.init完了');
 
     await Promise.race([
       liffInit,
