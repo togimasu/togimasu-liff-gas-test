@@ -75,7 +75,6 @@
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzxseejcXgVipPOB2hO_vs8KCeMe3BB8EqUBIuv_jGptRiJiyoVW6QmLbZmolrbomFDsA/exec';
     const LIFF_ID = '2011920848-fdZ0JLEN';
     const statusEl = document.getElementById('status');
-    let orientationListener = null;
 
     function setStatus(message, isError = false) {
       statusEl.textContent = message;
@@ -144,7 +143,7 @@
       return date ? `${date} ${record.pickupTime}` : record.pickupTime;
     }
 
-    async function openNumberZoom() {
+    function openNumberZoom() {
       const applicationNo = document.getElementById('confirmNo').textContent.trim();
       const lastThreeDigits = applicationNo.match(/\d{3}$/);
       if (!lastThreeDigits) {
@@ -157,27 +156,6 @@
       zoom.hidden = false;
       document.body.style.overflow = 'hidden';
       document.getElementById('zoomCloseButton').focus();
-      await startOrientationDetection();
-    }
-
-    async function startOrientationDetection() {
-      if (!('DeviceOrientationEvent' in window)) return;
-      try {
-        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-          const permission = await DeviceOrientationEvent.requestPermission();
-          if (permission !== 'granted') return;
-        }
-        orientationListener = event => {
-          if (typeof event.beta !== 'number') return;
-          const zoom = document.getElementById('numberZoom');
-          if (event.beta <= -45) zoom.classList.add('is-upside-down');
-          else if (event.beta >= 45) zoom.classList.remove('is-upside-down');
-        };
-        window.addEventListener('deviceorientation', orientationListener);
-      } catch (error) {
-        // センサー権限が得られない端末では手動反転ボタンを利用する。
-        console.warn('Device orientation is unavailable.', error);
-      }
     }
 
     function toggleNumberZoomOrientation() {
@@ -185,10 +163,6 @@
     }
 
     function closeNumberZoom() {
-      if (orientationListener) {
-        window.removeEventListener('deviceorientation', orientationListener);
-        orientationListener = null;
-      }
       document.getElementById('numberZoom').hidden = true;
       document.getElementById('numberZoom').classList.remove('is-upside-down');
       document.body.style.overflow = '';
