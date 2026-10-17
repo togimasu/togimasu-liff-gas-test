@@ -79,8 +79,6 @@
     }
 
     async function callGAS(payload) {
-      alert("callGAS payload★" + payload);
-
       const response = await fetch(GAS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -102,7 +100,7 @@
         document.getElementById('displayName').textContent = profile.displayName;
         alert("init callGAS before★");
         const result = await callGAS({ action: 'findToday', idToken: idToken });
-        alert("init callGAS after★");
+        alert("init callGAS after★" + result);
         if (!result.success) throw new Error(result.message || '申込状況を確認できませんでした。');
         statusEl.hidden = true;
         if (result.record) showConfirmation(result.record);
