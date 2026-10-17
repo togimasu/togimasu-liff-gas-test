@@ -27,6 +27,10 @@
     .row:last-child { border-bottom: 0; }
     .key { margin-bottom: 5px; color: #687065; font-size: 13px; }
     .data { white-space: pre-wrap; overflow-wrap: anywhere; }
+    .zoom-overlay { position: fixed; z-index: 10; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 32px; padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)); background: #182318; color: #fff; }
+    .zoom-label { margin: 0; font-size: 18px; }
+    .zoom-number { font-size: clamp(96px, 34vw,  min(42vh, 240px)); font-weight: 800; line-height: 1; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+    .zoom-close { width: min(100%, 280px); margin: 0; background: #fff; color: #182318; }
     [hidden] { display: none !important; }
   </style>
 </head>
@@ -50,6 +54,7 @@
       <h2>お申込み済みです</h2>
       <p class="intro">申込内容をご確認ください。</p>
       <div class="row"><div class="key">申込番号</div><div id="confirmNo" class="data"></div></div>
+      <button id="zoomButton" type="button" onclick="openNumberZoom()">拡大表示</button>
       <div class="row"><div class="key">申込日</div><div id="confirmDate" class="data"></div></div>
       <div class="row"><div class="key">LINE表示名</div><div id="confirmName" class="data"></div></div>
       <div class="row"><div class="key">受取り希望時間</div><div id="confirmTime" class="data"></div></div>
@@ -57,6 +62,12 @@
       <div class="row"><div class="key">作業状況</div><div id="confirmStatus" class="data"></div></div>
     </section>
   </main>
+
+  <section id="numberZoom" class="zoom-overlay" role="dialog" aria-modal="true" aria-labelledby="zoomLabel" hidden>
+    <p id="zoomLabel" class="zoom-label">申込番号</p>
+    <div id="zoomNumber" class="zoom-number" aria-live="polite"></div>
+    <button id="zoomCloseButton" class="zoom-close" type="button" onclick="closeNumberZoom()">閉じる</button>
+  </section>
 
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzxseejcXgVipPOB2hO_vs8KCeMe3BB8EqUBIuv_jGptRiJiyoVW6QmLbZmolrbomFDsA/exec';
@@ -133,6 +144,31 @@
       document.getElementById('confirmStatus').textContent = record.workStatus;
       document.getElementById('confirmation').hidden = false;
     }
+
+    function openNumberZoom() {
+      const applicationNo = document.getElementById('confirmNo').textContent.trim();
+      const lastThreeDigits = applicationNo.match(/\d{3}$/);
+      if (!lastThreeDigits) {
+        setStatus('申込番号の末尾3桁を取得できませんでした。', true);
+        return;
+      }
+      document.getElementById('zoomNumber').textContent = lastThreeDigits[0];
+      document.getElementById('numberZoom').hidden = false;
+      document.body.style.overflow = 'hidden';
+      document.getElementById('zoomCloseButton').focus();
+    }
+
+    function closeNumberZoom() {
+      document.getElementById('numberZoom').hidden = true;
+      document.body.style.overflow = '';
+      document.getElementById('zoomButton').focus();
+    }
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !document.getElementById('numberZoom').hidden) {
+        closeNumberZoom();
+      }
+    });
 
     async function submitApplication(profile, idToken) {
       const button = document.getElementById('submitButton');
