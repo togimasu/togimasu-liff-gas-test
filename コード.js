@@ -8,6 +8,11 @@ function doGet() {
   return HtmlService.createHtmlOutputFromFile('index').setTitle('包丁研ぎのお申込み');
 }
 
+/** 初回セットアップ時に、エディタから外部通信権限を承認するための関数。 */
+function authorizeExternalRequest() {
+  UrlFetchApp.fetch('https://www.google.com', { muteHttpExceptions: true });
+}
+
 /** GitHub Pages上のLIFF画面からのAPI要求を処理する。 */
 function doPost(e) {
   try {
