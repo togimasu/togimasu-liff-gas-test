@@ -44,9 +44,21 @@ function doPost(e) {
 function verifyLiffToken(idToken) {
   if (!idToken) throw new Error('LINEの認証情報がありません。LIFFを開き直してください。');
   const channelId = '2011920848';
-  const url = 'https://api.line.me/oauth2/v2.1/verify?id_token=' + encodeURIComponent(idToken) + '&client_id=' + channelId;
-  const result = UrlFetchApp.fetch(url, { method: 'get', muteHttpExceptions: true });
-  if (result.getResponseCode() !== 200) throw new Error('LINEの認証を確認できませんでした。LIFFを開き直してください。');
+  const result = UrlFetchApp.fetch('https://api.line.me/oauth2/v2.1/verify', {
+    method: 'post',
+    contentType: 'application/x-www-form-urlencoded',
+    payload: { id_token: idToken, client_id: channelId },
+    muteHttpExceptions: true
+  });
+  if (result.getResponseCode() !== 200) {
+    let detail = result.getContentText();
+    try {
+      const errorBody = JSON.parse(detail);
+      detail = errorBody.error_description || errorBody.error || detail;
+    } catch (ignored) {}
+    console.error('LINE ID token verification failed: HTTP ' + result.getResponseCode() + ', ' + detail);
+    throw new Error('LINE認証の検証に失敗しました（HTTP ' + result.getResponseCode() + '）。' + detail);
+  }
   const profile = JSON.parse(result.getContentText());
   if (!profile.sub) throw new Error('LINEユーザーを確認できませんでした。');
   return { userId: profile.sub, displayName: profile.name || '' };
