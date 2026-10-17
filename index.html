@@ -79,6 +79,8 @@
     }
 
     async function callGAS(payload) {
+      alert("callGAS payload★" + payload);
+
       const response = await fetch(GAS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },

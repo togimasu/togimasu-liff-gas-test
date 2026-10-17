@@ -4,6 +4,7 @@ const TIME_ZONE = 'Asia/Tokyo';
 
 /** LIFF画面をGASから直接表示する場合の入口。 */
 function doGet() {
+  console.log("★doGet Start★");
   return HtmlService.createHtmlOutputFromFile('index').setTitle('包丁研ぎのお申込み');
 }
 
