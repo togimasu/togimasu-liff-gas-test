@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1">
+
+  <title>申込情報</title>
+
+  <!-- LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+  <style>
+
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background: #f7f7f7;
+    }
+
+    h1 {
+      font-size: 22px;
+    }
+
+    .box {
+      background: white;
+      padding: 16px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+    }
+
+    label {
+      display: block;
+      margin-top: 12px;
+      font-weight: bold;
+    }
+
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+      margin-top: 5px;
+      font-size: 16px;
+    }
+
+    input[readonly] {
+      background: #eeeeee;
+    }
+
+    button {
+      padding: 10px 16px;
+      margin-top: 15px;
+      margin-right: 5px;
+      font-size: 15px;
+      border: none;
+      border-radius: 6px;
+    }
+
+    .record {
+      background: white;
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 10px;
+    }
+
+  </style>
+
+</head>
+
+
+<body>
+
+
+<h1>申込情報4</h1>
+
+
+<div class="box">
+
+  <!-- 申込番号 -->
+
+  <label>申込番号</label>
+
+  <input
+    id="applicationNo"
+    type="text"
+    placeholder="例：0001"
+  >
+
+
+  <!-- LINE ID -->
+
+  <label>LINE ID</label>
+
+  <input
+    id="lineId"
+    type="text"
+    readonly
+  >
+
+
+  <!-- LINE表示名 -->
+
+  <label>LINE表示名</label>
+
+  <input
+    id="displayName"
+    type="text"
+    readonly
+  >
+
+
+  <button onclick="createRecord()">
+    登録
+  </button>
+
+  <button onclick="updateRecord()">
+    更新
+  </button>
+
+  <button onclick="clearForm()">
+    クリア
+  </button>
+
+</div>
+
+
+<div class="box">
+
+  <h2>申込一覧</h2>
+
+  <div id="list">
+    読み込み中...
+  </div>
+
+</div>
+
+
+<script>
+
+
+// ==================================================
+// 設定
+// ==================================================
+
+const GAS_URL =
+  'https://script.google.com/macros/s/AKfycbzxseejcXgVipPOB2hO_vs8KCeMe3BB8EqUBIuv_jGptRiJiyoVW6QmLbZmolrbomFDsA/exec';
+
+const LIFF_ID =
+  '2011920848-fdZ0JLEN';
+
+
+// ==================================================
+// 初期処理
+// ==================================================
+
+async function init() {
+
+  alert('① init開始');
+
+  try {
+
+    alert('② liff.init開始');
+
+    const timeout = new Promise((_, reject) => {
+
+      setTimeout(() => {
+
+        reject(
+          new Error(
+            'liff.init()が10秒以内に完了しませんでした'
+          )
+        );
+
+      }, 10000);
+
+    });
+    
+    try {
+      alert('②-1 liff.init呼び出し直前');
+alert(
+  '現在URL:\n' +
+  window.location.href
+);
+      const liffInit = liff.init({
+        liffId: LIFF_ID
+      });
+
+      alert('②-2 liff.init呼び出し直後');
+
+      await Promise.race([
+        liffInit,
+        timeout
+      ]);
+
+      alert('③ liff.init成功');
+    } catch (error) {
+      alert(
+        'LIFF処理エラー\n\n' +
+        'name: ' + error.name + '\n' +
+        'message: ' + error.message
+      );
+
+    }
+
+alert('② liff.init完了');
+
+    await Promise.race([
+      liffInit,
+      timeout
+    ]);
+
+
+    alert('③ liff.init成功');
+
+
+    // LINEログイン状態確認
+    if (!liff.isLoggedIn()) {
+
+      alert('④ LINEログインが必要です');
+
+      liff.login();
+
+      return;
+
+    }
+
+
+    alert('⑤ LINEログイン済み');
+
+
+    // LINEプロフィール取得
+    const profile =
+      await liff.getProfile();
+
+
+    alert('⑥ プロフィール取得成功');
+
+
+    // LINE IDを自動設定
+    document.getElementById(
+      'lineId'
+    ).value =
+      profile.userId;
+
+
+    // LINE表示名を自動設定
+    document.getElementById(
+      'displayName'
+    ).value =
+      profile.displayName;
+
+
+    // データ一覧取得
+    loadRecords();
+
+
+  } catch (error) {
+
+    alert(
+      'LIFF処理エラー\n\n' +
+      'name: ' + error.name + '\n' +
+      'message: ' + error.message
+    );
+
+    console.error(error);
+
+  }
+
+}
+
+// ==================================================
+// GAS通信
+// ==================================================
+
+async function callGAS(data) {
+  console.log('★★★ GAS送信開始 ★★★');
+  console.log('GAS URL:', GAS_URL);
+  console.log('送信データ:', data);
+  const response = await fetch(
+    GAS_URL,
+    {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }
+  );
+
+  return await response.json();
+
+}
+
+
+// ==================================================
+// CREATE
+// ==================================================
+
+async function createRecord() {
+
+  const applicationNo =
+    document.getElementById(
+      'applicationNo'
+    ).value.trim();
+
+
+  const lineId =
+    document.getElementById(
+      'lineId'
+    ).value;
+
+
+  const displayName =
+    document.getElementById(
+      'displayName'
+    ).value;
+
+
+  // 申込番号チェック
+  if (!applicationNo) {
+
+    alert(
+      '申込番号を入力してください'
+    );
+
+    return;
+  }
+
+
+  // LINE IDチェック
+  if (!lineId) {
+
+    alert(
+      'LINE IDを取得できていません'
+    );
+
+    return;
+  }
+
+
+  const result =
+    await callGAS({
+
+      action: 'create',
+
+      applicationNo:
+        applicationNo,
+
+      lineId:
+        lineId,
+
+      displayName:
+        displayName
+
+    });
+
+
+  alert(result.message);
+
+
+  if (result.success) {
+
+    clearForm();
+
+    // LINE情報を再設定
+    setLineProfile();
+
+    loadRecords();
+
+  }
+
+}
+
+
+// ==================================================
+// READ
+// ==================================================
+
+async function loadRecords() {
+
+  try {
+
+    const result =
+      await callGAS({
+
+        action: 'read'
+
+      });
+
+
+    if (!result.success) {
+
+      alert(result.message);
+
+      return;
+    }
+
+
+    const list =
+      document.getElementById(
+        'list'
+      );
+
+
+    list.innerHTML = '';
+
+
+    if (
+      result.records.length === 0
+    ) {
+
+      list.innerHTML =
+        '<p>登録データがありません</p>';
+
+      return;
+    }
+
+
+    result.records.forEach(
+      record => {
+
+        const div =
+          document.createElement(
+            'div'
+          );
+
+        div.className =
+          'record';
+
+
+        div.innerHTML = `
+
+          <strong>
+            申込番号：
+            ${escapeHtml(
+              record.applicationNo
+            )}
+          </strong>
+
+          <br>
+
+          LINE表示名：
+          ${escapeHtml(
+            record.displayName
+          )}
+
+          <br>
+
+          <button
+            onclick='selectRecord(
+              ${JSON.stringify(record)}
+            )'>
+            編集
+          </button>
+
+          <button
+            onclick='deleteRecord(
+              "${escapeHtml(
+                record.applicationNo
+              )}"
+            )'>
+            削除
+          </button>
+
+        `;
+
+
+        list.appendChild(div);
+
+      }
+    );
+
+
+  } catch (error) {
+
+    console.error(error);
+
+  }
+
+}
+
+
+// ==================================================
+// UPDATE
+// ==================================================
+
+async function updateRecord() {
+
+  const applicationNo =
+    document.getElementById(
+      'applicationNo'
+    ).value.trim();
+
+
+  const lineId =
+    document.getElementById(
+      'lineId'
+    ).value;
+
+
+  const displayName =
+    document.getElementById(
+      'displayName'
+    ).value;
+
+
+  if (!applicationNo) {
+
+    alert(
+      '申込番号を入力してください'
+    );
+
+    return;
+  }
+
+
+  const result =
+    await callGAS({
+
+      action: 'update',
+
+      applicationNo:
+        applicationNo,
+
+      lineId:
+        lineId,
+
+      displayName:
+        displayName
+
+    });
+
+
+  alert(result.message);
+
+
+  if (result.success) {
+
+    clearForm();
+
+    setLineProfile();
+
+    loadRecords();
+
+  }
+
+}
+
+
+// ==================================================
+// DELETE
+// ==================================================
+
+async function deleteRecord(
+  applicationNo
+) {
+
+  if (
+    !confirm(
+      '申込番号 ' +
+      applicationNo +
+      ' を削除しますか？'
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  const result =
+    await callGAS({
+
+      action: 'delete',
+
+      applicationNo:
+        applicationNo
+
+    });
+
+
+  alert(result.message);
+
+
+  if (result.success) {
+
+    loadRecords();
+
+  }
+
+}
+
+
+// ==================================================
+// 編集
+// ==================================================
+
+function selectRecord(record) {
+
+  document.getElementById(
+    'applicationNo'
+  ).value =
+    record.applicationNo;
+
+
+  document.getElementById(
+    'lineId'
+  ).value =
+    record.lineId;
+
+
+  document.getElementById(
+    'displayName'
+  ).value =
+    record.displayName;
+
+}
+
+
+// ==================================================
+// クリア
+// ==================================================
+
+function clearForm() {
+
+  document.getElementById(
+    'applicationNo'
+  ).value = '';
+
+}
+
+
+// ==================================================
+// LINEプロフィール設定
+// ==================================================
+
+async function setLineProfile() {
+
+  const profile =
+    await liff.getProfile();
+
+
+  document.getElementById(
+    'lineId'
+  ).value =
+    profile.userId;
+
+
+  document.getElementById(
+    'displayName'
+  ).value =
+    profile.displayName;
+
+}
+
+
+// ==================================================
+// HTMLエスケープ
+// ==================================================
+
+function escapeHtml(value) {
+
+  return String(value)
+
+    .replace(
+      /&/g,
+      '&amp;'
+    )
+
+    .replace(
+      /</g,
+      '&lt;'
+    )
+
+    .replace(
+      />/g,
+      '&gt;'
+    )
+
+    .replace(
+      /"/g,
+      '&quot;'
+    )
+
+    .replace(
+      /'/g,
+      '&#039;'
+    );
+
+}
+
+
+// ==================================================
+// 起動
+// ==================================================
+init();
+</script>
+
+
+</body>
+
+</html>
