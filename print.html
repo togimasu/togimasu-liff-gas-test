@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f4ef">
+  <title>申込印刷</title>
+  <style>
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Noto Sans JP", sans-serif; color: #252923; background: #f6f4ef; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 16px calc(32px + env(safe-area-inset-bottom)); }
+    main { width: min(100%, 480px); margin: 0 auto; }
+    h1 { margin: 8px 0 18px; font-size: 24px; }
+    .card { padding: 22px 18px; border-radius: 16px; background: white; box-shadow: 0 4px 18px #26331a12; }
+    .number { margin: 0 0 18px; text-align: center; font-size: 30px; font-weight: 800; letter-spacing: .04em; }
+    .row { padding: 12px 0; border-bottom: 1px solid #eceee9; }
+    .row:last-child { border-bottom: 0; }
+    .label { margin-bottom: 4px; color: #687065; font-size: 13px; }
+    .value { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 17px; }
+    button { width: 100%; min-height: 50px; margin-top: 20px; border: 0; border-radius: 10px; background: #426b3e; color: white; font: inherit; font-size: 16px; font-weight: 700; }
+    button:disabled { opacity: .55; }
+    .status { min-height: 24px; color: #596158; font-size: 14px; line-height: 1.6; }
+    .error { color: #a12e25; }
+    [hidden] { display: none !important; }
+  </style>
+  <script src="https://raw.githubusercontent.com/star-micronics/starwebprnt-sdk/main/Sample/js/StarWebPrintBuilder.js"></script>
+  <script src="https://raw.githubusercontent.com/star-micronics/starwebprnt-sdk/main/Sample/js/StarWebPrintTrader.js"></script>
+</head>
+<body>
+  <main>
+    <h1>印刷内容</h1>
+    <section id="content" class="card" hidden>
+      <p id="applicationNo" class="number"></p>
+      <div class="row"><div class="label">申込日</div><div id="applicationDate" class="value"></div></div>
+      <div class="row"><div class="label">お名前</div><div id="displayName" class="value"></div></div>
+      <div class="row"><div class="label">受取り希望時間</div><div id="pickupTime" class="value"></div></div>
+      <div class="row"><div class="label">本数</div><div id="knifeCount" class="value"></div></div>
+      <div class="row"><div class="label">備考</div><div id="notes" class="value"></div></div>
+      <button id="printButton" type="button" onclick="printApplication()">SM-S230iへ印刷</button>
+    </section>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+  </main>
+  <script>
+    let record = {};
+    try {
+      record = JSON.parse(new URLSearchParams(location.search).get('payload') || '{}');
+    } catch (error) {
+      record = {};
+    }
+    const statusEl = document.getElementById('status');
+    if (record.applicationNo) {
+      document.getElementById('applicationNo').textContent = record.applicationNo;
+      document.getElementById('applicationDate').textContent = record.applicationDate || '';
+      document.getElementById('displayName').textContent = record.displayName || '';
+      document.getElementById('pickupTime').textContent = record.pickupTime || '希望なし';
+      document.getElementById('knifeCount').textContent = `${record.knifeCount || 1}本`;
+      document.getElementById('notes').textContent = record.notes || 'なし';
+      document.getElementById('content').hidden = false;
+    } else {
+      statusEl.textContent = '印刷する申込内容を開けませんでした。管理画面から申込番号を選び直してください。';
+      statusEl.classList.add('error');
+    }
+
+    function printApplication() {
+      if (!window.StarWebPrintBuilder || !window.StarWebPrintTrader) {
+        showStatus('Star webPRNT SDKを読み込めません。通信状態を確認してページを開き直してください。', true);
+        return;
+      }
+      const button = document.getElementById('printButton');
+      button.disabled = true;
+      showStatus('プリンターに送信しています…');
+      const builder = new StarWebPrintBuilder();
+      const request = builder.createInitializationElement({ reset: true });
+      const lines = [
+        '包丁研ぎ 受付票',
+        '------------------------------',
+        `申込番号: ${record.applicationNo}`,
+        `申込日: ${record.applicationDate || ''}`,
+        `お名前: ${record.displayName || ''}`,
+        `受取り: ${record.pickupTime || '希望なし'}`,
+        `本数: ${record.knifeCount || 1}本`,
+        `備考: ${record.notes || 'なし'}`,
+        '------------------------------',
+        '\n\n'
+      ];
+      const textRequest = builder.createTextElement({ codepage: 'cp998', linespace: 32, data: lines.join('\n') });
+      const trader = new StarWebPrintTrader({
+        url: /Android/i.test(navigator.userAgent)
+          ? 'https://localhost:8001/StarWebPRNT/SendMessage'
+          : 'http://localhost:8001/StarWebPRNT/SendMessage',
+        checkedblock: true,
+        timeout: 90000
+      });
+      trader.onReceive = response => {
+        button.disabled = false;
+        if (response.traderSuccess) showStatus('印刷を完了しました。');
+        else showStatus(`印刷に失敗しました（コード: ${response.traderCode}）。プリンターの接続と用紙を確認してください。`, true);
+      };
+      trader.onError = () => {
+        button.disabled = false;
+        showStatus('プリンターと通信できません。Star webPRNT Browserで開いているか、Bluetooth接続を確認してください。', true);
+      };
+      try {
+        trader.sendMessage({ request: request + textRequest });
+      } catch (error) {
+        button.disabled = false;
+        showStatus(error.message || '印刷に失敗しました。', true);
+      }
+    }
+
+    function showStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.classList.toggle('error', isError);
+    }
+  </script>
+</body>
+</html>

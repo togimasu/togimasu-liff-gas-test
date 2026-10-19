@@ -9,6 +9,42 @@ function doGet() {
   return HtmlService.createHtmlOutputFromFile('index').setTitle('包丁研ぎのお申込み');
 }
 
+/** Googleログインボタンの初期化に使う公開OAuthクライアントIDを返す。 */
+function getAdminAuthConfig() {
+  const properties = PropertiesService.getScriptProperties();
+  const clientId = properties.getProperty('ADMIN_GOOGLE_CLIENT_ID');
+  const allowedEmails = properties.getProperty('ADMIN_EMAILS');
+  if (!clientId || !allowedEmails) throw new Error('管理用Google認証の設定が未完了です。');
+  return { clientId: clientId };
+}
+
+/** Google IDトークンと許可メール一覧を確認して申込一覧を返す。 */
+function getAdminApplications(idToken) {
+  const properties = PropertiesService.getScriptProperties();
+  const clientId = properties.getProperty('ADMIN_GOOGLE_CLIENT_ID');
+  const allowedEmails = (properties.getProperty('ADMIN_EMAILS') || '')
+    .split(',').map(email => email.trim().toLowerCase()).filter(Boolean);
+  if (!clientId || allowedEmails.length === 0) {
+    throw new Error('管理用Google認証が未設定です。');
+  }
+  if (!idToken) throw new Error('Googleアカウントでログインしてください。');
+
+  const verification = UrlFetchApp.fetch(
+    'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken),
+    { muteHttpExceptions: true }
+  );
+  if (verification.getResponseCode() !== 200) throw new Error('Googleログインを確認できませんでした。再度ログインしてください。');
+  const claims = JSON.parse(verification.getContentText());
+  const email = String(claims.email || '').toLowerCase();
+  const isEmailVerified = claims.email_verified === true || claims.email_verified === 'true';
+  const validIssuer = claims.iss === 'accounts.google.com' || claims.iss === 'https://accounts.google.com';
+  if (claims.aud !== clientId || !validIssuer || !isEmailVerified || !allowedEmails.includes(email)) {
+    throw new Error('このGoogleアカウントには管理画面の利用権限がありません。');
+  }
+  const rows = getSheet().getDataRange().getValues();
+  return rows.slice(1).map(rowToRecord).reverse();
+}
+
 /** 初回セットアップ時に、エディタから外部通信権限を承認するための関数。 */
 function authorizeExternalRequest() {
   UrlFetchApp.fetch('https://www.google.com', { muteHttpExceptions: true });
@@ -19,6 +55,12 @@ function doPost(e) {
   try {
     console.log("★doPost Start★");
     const data = JSON.parse(e.postData.contents || '{}');
+    if (data.action === 'adminAuthConfig') {
+      return response({ success: true, config: getAdminAuthConfig() });
+    }
+    if (data.action === 'adminList') {
+      return response({ success: true, records: getAdminApplications(data.idToken) });
+    }
     const identity = verifyLiffToken(data.idToken);
     let result;
     console.log("★doPost ★★" + data);
