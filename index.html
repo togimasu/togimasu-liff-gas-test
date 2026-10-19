@@ -21,6 +21,9 @@
     button { width: 100%; margin-top: 22px; padding: 14px 16px; border: 0; border-radius: 10px; background: #426b3e; color: white; font: inherit; font-size: 16px; font-weight: 700; }
     button:disabled { opacity: .55; }
     .status { padding: 16px 4px; color: #596158; }
+    .login-actions { display: grid; gap: 10px; margin-top: 14px; }
+    .login-actions a { display: block; padding: 14px 16px; border-radius: 10px; background: #06c755; color: #fff; text-align: center; text-decoration: none; font-weight: 700; }
+    .login-actions button { margin: 0; background: #596158; }
     .error { color: #a12e25; }
     .success { color: #276139; }
     .row { padding: 14px 0; border-bottom: 1px solid #eceee9; }
@@ -40,6 +43,10 @@
     <h1>包丁研ぎのお申込み</h1>
     <p class="intro">ご希望の受取り時間を選んでお申込みください。</p>
     <p id="status" class="status" role="status" aria-live="polite">LINEの情報を確認しています…</p>
+    <div id="loginActions" class="login-actions" hidden>
+      <a id="openInLineLink" href="https://liff.line.me/2011920848-fdZ0JLEN">LINEアプリで開く</a>
+      <button id="continueInBrowserButton" type="button">このブラウザーでLINEログイン</button>
+    </div>
 
     <section id="entry" class="card" hidden>
       <label>LINE表示名</label><div id="displayName" class="value"></div>
@@ -108,7 +115,21 @@
       fillTimes();
       try {
         await liff.init({ liffId: LIFF_ID });
-        if (!liff.isLoggedIn()) { liff.login(); return; }
+        if (!liff.isLoggedIn()) {
+          if (!liff.isInClient()) {
+            setStatus('ホーム画面から開いた場合は、LINEアプリで開くとログイン操作を省略できます。');
+            const openInLineLink = document.getElementById('openInLineLink');
+            const liffUrl = new URL(`https://liff.line.me/${LIFF_ID}`);
+            const applicationNo = new URLSearchParams(location.search).get('applicationNo');
+            if (applicationNo) liffUrl.searchParams.set('applicationNo', applicationNo);
+            openInLineLink.href = liffUrl.toString();
+            document.getElementById('loginActions').hidden = false;
+            document.getElementById('continueInBrowserButton').addEventListener('click', () => liff.login());
+            return;
+          }
+          liff.login();
+          return;
+        }
         const idToken = liff.getIDToken();
         if (!idToken) throw new Error('LINEのログイン情報を取得できませんでした。');
 
