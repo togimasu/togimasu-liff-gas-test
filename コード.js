@@ -3,7 +3,7 @@ const HEADERS = ['申込番号', '申込日時', 'LINE表示名', 'LINE ID', '�
 const LEGACY_HEADERS = HEADERS.slice(0, -1);
 const TIME_ZONE = 'Asia/Tokyo';
 
-/** LIFF画面をGASから直接表示する場合の入口。 */
+/** 申込者向けフォームをGASから直接表示する場合の入口。 */
 function doGet() {
   console.log("★doGet Start★");
   return HtmlService.createHtmlOutputFromFile('index').setTitle('包丁研ぎのお申込み');
@@ -42,7 +42,11 @@ function getAdminApplications(idToken) {
     throw new Error('このGoogleアカウントには管理画面の利用権限がありません。');
   }
   const rows = getSheet().getDataRange().getValues();
-  return rows.slice(1).map(rowToRecord).reverse();
+  return rows.slice(1).map(row => {
+    const record = rowToRecord(row);
+    delete record.lineId;
+    return record;
+  }).reverse();
 }
 
 /** 初回セットアップ時に、エディタから外部通信権限を承認するための関数。 */
@@ -50,7 +54,7 @@ function authorizeExternalRequest() {
   UrlFetchApp.fetch('https://www.google.com', { muteHttpExceptions: true });
 }
 
-/** GitHub Pages上のLIFF画面からのAPI要求を処理する。 */
+/** 管理APIと申込者向けLIFF APIを振り分けて処理する。 */
 function doPost(e) {
   try {
     console.log("★doPost Start★");
