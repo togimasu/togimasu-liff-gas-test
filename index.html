@@ -46,6 +46,8 @@
       <label for="applicationNo">申込番号</label><input id="applicationNo" type="text" readonly value="" placeholder="お申込み時に自動で発行します">
       <label for="pickupTime">受取り希望時間</label>
       <select id="pickupTime"></select>
+      <label for="knifeCount">本数</label>
+      <input id="knifeCount" type="number" min="1" step="1" value="1" required inputmode="numeric">
       <label for="notes">備考</label>
       <textarea id="notes" maxlength="1000" placeholder="ご要望があれば入力してください"></textarea>
       <button id="submitButton" type="button">申込む</button>
@@ -59,6 +61,7 @@
       <div class="row"><div class="key">申込日</div><div id="confirmDate" class="data"></div></div>
       <div class="row"><div class="key">LINE表示名</div><div id="confirmName" class="data"></div></div>
       <div class="row"><div class="key">受取り希望時間</div><div id="confirmTime" class="data"></div></div>
+      <div class="row"><div class="key">本数</div><div id="confirmCount" class="data"></div></div>
       <div class="row"><div class="key">備考</div><div id="confirmNotes" class="data"></div></div>
       <div class="row"><div class="key">作業状況</div><div id="confirmStatus" class="data"></div></div>
     </section>
@@ -132,6 +135,7 @@
       document.getElementById('confirmDate').textContent = record.applicationDate;
       document.getElementById('confirmName').textContent = record.displayName;
       document.getElementById('confirmTime').textContent = formatPickupDateTime(record);
+      document.getElementById('confirmCount').textContent = `${record.knifeCount || 1}本`;
       document.getElementById('confirmNotes').textContent = record.notes || 'なし';
       document.getElementById('confirmStatus').textContent = record.workStatus;
       document.getElementById('confirmation').hidden = false;
@@ -176,6 +180,8 @@
     });
 
     async function submitApplication(idToken) {
+      const countInput = document.getElementById('knifeCount');
+      if (!countInput.reportValidity()) return;
       const button = document.getElementById('submitButton');
       button.disabled = true;
       button.textContent = '申込中…';
@@ -183,6 +189,7 @@
         const result = await callGAS({
           action: 'create', idToken: idToken,
           pickupTime: document.getElementById('pickupTime').value,
+          knifeCount: document.getElementById('knifeCount').value,
           notes: document.getElementById('notes').value.trim()
         });
         if (!result.success) throw new Error(result.message || '申込みに失敗しました。');

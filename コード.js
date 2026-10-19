@@ -1,5 +1,6 @@
 const SHEET_NAME = '申込情報';
-const HEADERS = ['申込番号', '申込日時', 'LINE表示名', 'LINE ID', '受取り希望時間', '備考', '作業状況'];
+const HEADERS = ['申込番号', '申込日時', 'LINE表示名', 'LINE ID', '受取り希望時間', '備考', '作業状況', '本数'];
+const LEGACY_HEADERS = HEADERS.slice(0, -1);
 const TIME_ZONE = 'Asia/Tokyo';
 
 /** LIFF画面をGASから直接表示する場合の入口。 */
@@ -84,6 +85,8 @@ function createApplication(data) {
   if (!data.lineId || !data.displayName) throw new Error('LINEのプロフィールを取得できませんでした。');
   const pickupTime = String(data.pickupTime || '');
   if (!isValidPickupTime(pickupTime)) throw new Error('受取り希望時間を選択し直してください。');
+  const knifeCount = Number(data.knifeCount);
+  if (!Number.isInteger(knifeCount) || knifeCount < 1) throw new Error('本数は1以上の整数で入力してください。');
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -107,12 +110,13 @@ function createApplication(data) {
       displayName: String(data.displayName).slice(0, 100),
       lineId: String(data.lineId),
       pickupTime: pickupTime,
+      knifeCount: knifeCount,
       notes: String(data.notes || '').slice(0, 1000),
       workStatus: '受付済み'
     };
     sheet.appendRow([
       record.applicationNo, record.applicationDate, record.displayName,
-      record.lineId, record.pickupTime, record.notes, record.workStatus
+      record.lineId, record.pickupTime, record.notes, record.workStatus, record.knifeCount
     ]);
     return { success: true, record: record };
   } finally {
@@ -126,10 +130,12 @@ function getSheet() {
   if (!sheet) sheet = spreadsheet.insertSheet(SHEET_NAME);
   if (sheet.getLastRow() === 0) sheet.appendRow(HEADERS);
   else {
-    const current = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), HEADERS.length)).getValues()[0];
+    const current = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), LEGACY_HEADERS.length)).getValues()[0];
     const sampleHeader = ['申込番号', 'LINE ID', 'LINE表示名'];
     if (sampleHeader.every((value, index) => String(current[index] || '') === value)) {
       sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+    } else if (LEGACY_HEADERS.every((value, index) => String(current[index] || '') === value)) {
+      sheet.getRange(1, HEADERS.length).setValue(HEADERS[HEADERS.length - 1]);
     } else if (!HEADERS.every((value, index) => String(current[index] || '') === value)) {
       throw new Error('「申込情報」シートの1行目を申込項目の見出しにしてください。');
     }
@@ -163,7 +169,8 @@ function rowToRecord(row) {
     lineId: String(row[3] || ''),
     pickupTime: String(row[4] || '希望なし'),
     notes: String(row[5] || ''),
-    workStatus: String(row[6] || '受付済み')
+    workStatus: String(row[6] || '受付済み'),
+    knifeCount: Number(row[7]) || 1
   };
 }
 
