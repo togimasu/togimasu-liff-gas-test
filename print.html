@@ -97,6 +97,7 @@
         '\n\n'
       ];
       const textRequest = builder.createTextElement({ codepage: 'cp998', linespace: 32, data: lines.join('\n') });
+      const qrRequest = builder.createQrCodeElement({ model: 'model2', level: 'level_m', cell: 5, data: liffUrl.toString() });
       trader = new StarWebPrintTrader({
         url: /Android/i.test(navigator.userAgent)
           ? 'https://localhost:8001/StarWebPRNT/SendMessage'
