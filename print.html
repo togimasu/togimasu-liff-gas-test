@@ -23,8 +23,8 @@
     .error { color: #a12e25; }
     [hidden] { display: none !important; }
   </style>
-  <script src="https://raw.githubusercontent.com/star-micronics/starwebprnt-sdk/main/Sample/js/StarWebPrintBuilder.js"></script>
-  <script src="https://raw.githubusercontent.com/star-micronics/starwebprnt-sdk/main/Sample/js/StarWebPrintTrader.js"></script>
+  <script src="js/StarWebPrintBuilder.js"></script>
+  <script src="js/StarWebPrintTrader.js"></script>
 </head>
 <body>
   <main>
@@ -47,6 +47,8 @@
     } catch (error) {
       record = {};
     }
+    // StarWebPrintTraderのブラウザー連携コールバックがグローバルのtraderを参照する。
+    var trader;
     const statusEl = document.getElementById('status');
     if (record.applicationNo) {
       document.getElementById('applicationNo').textContent = record.applicationNo;
@@ -84,7 +86,7 @@
         '\n\n'
       ];
       const textRequest = builder.createTextElement({ codepage: 'cp998', linespace: 32, data: lines.join('\n') });
-      const trader = new StarWebPrintTrader({
+      trader = new StarWebPrintTrader({
         url: /Android/i.test(navigator.userAgent)
           ? 'https://localhost:8001/StarWebPRNT/SendMessage'
           : 'http://localhost:8001/StarWebPRNT/SendMessage',
