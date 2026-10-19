@@ -13,18 +13,25 @@
     h1 { margin: 8px 0 18px; font-size: 24px; }
     .card { padding: 22px 18px; border-radius: 16px; background: white; box-shadow: 0 4px 18px #26331a12; }
     .number { margin: 0 0 18px; text-align: center; font-size: 30px; font-weight: 800; letter-spacing: .04em; }
+    .qr-section { padding: 18px 0 4px; text-align: center; }
+    .qr-section p { margin: 0 0 10px; color: #596158; font-size: 14px; }
+    #applicationQr { display: flex; justify-content: center; min-height: 180px; }
+    #applicationQr img, #applicationQr canvas { width: 180px !important; height: 180px !important; }
     .row { padding: 12px 0; border-bottom: 1px solid #eceee9; }
     .row:last-child { border-bottom: 0; }
     .label { margin-bottom: 4px; color: #687065; font-size: 13px; }
     .value { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 17px; }
     button { width: 100%; min-height: 50px; margin-top: 20px; border: 0; border-radius: 10px; background: #426b3e; color: white; font: inherit; font-size: 16px; font-weight: 700; }
     button:disabled { opacity: .55; }
+    button.secondary { margin-top: 10px; background: #596158; }
     .status { min-height: 24px; color: #596158; font-size: 14px; line-height: 1.6; }
     .error { color: #a12e25; }
     [hidden] { display: none !important; }
+    @media print { body { padding: 0; background: #fff; } main { width: 100%; } .card { padding: 8mm; box-shadow: none; } button, .status { display: none !important; } .qr-section { break-inside: avoid; } }
   </style>
   <script src="js/StarWebPrintBuilder.js"></script>
   <script src="js/StarWebPrintTrader.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
   <main>
@@ -36,6 +43,7 @@
       <div class="row"><div class="label">受取り希望時間</div><div id="pickupTime" class="value"></div></div>
       <div class="row"><div class="label">本数</div><div id="knifeCount" class="value"></div></div>
       <div class="row"><div class="label">備考</div><div id="notes" class="value"></div></div>
+      <div class="qr-section"><p>申込内容をLINEで確認</p><div id="applicationQr" role="img" aria-label="申込内容を開くQRコード"></div></div>
       <button id="printButton" type="button" onclick="printApplication()">SM-S230iへ印刷</button>
     </section>
     <p id="status" class="status" role="status" aria-live="polite"></p>
@@ -48,6 +56,8 @@
       record = {};
     }
     // StarWebPrintTraderのブラウザー連携コールバックがグローバルのtraderを参照する。
+    const liffUrl = new URL('https://liff.line.me/2011920848-fdZ0JLEN');
+    if (record.applicationNo) liffUrl.searchParams.set('applicationNo', record.applicationNo);
     var trader;
     const statusEl = document.getElementById('status');
     if (record.applicationNo) {
@@ -57,6 +67,7 @@
       document.getElementById('pickupTime').textContent = record.pickupTime || '希望なし';
       document.getElementById('knifeCount').textContent = `${record.knifeCount || 1}本`;
       document.getElementById('notes').textContent = record.notes || 'なし';
+      if (window.QRCode) new QRCode(document.getElementById('applicationQr'), { text: liffUrl.toString(), width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
       document.getElementById('content').hidden = false;
     } else {
       statusEl.textContent = '印刷する申込内容を開けませんでした。管理画面から申込番号を選び直してください。';
@@ -103,7 +114,7 @@
         showStatus('プリンターと通信できません。Star webPRNT Browserで開いているか、Bluetooth接続を確認してください。', true);
       };
       try {
-        trader.sendMessage({ request: request + textRequest });
+        trader.sendMessage({ request: request + textRequest + qrRequest });
       } catch (error) {
         button.disabled = false;
         showStatus(error.message || '印刷に失敗しました。', true);
