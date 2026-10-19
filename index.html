@@ -91,6 +91,14 @@
       statusEl.classList.toggle('error', isError);
     }
 
+    function showLineOpenLink(showBrowserLogin = false) {
+      const liffUrl = new URL(`https://liff.line.me/${LIFF_ID}`);
+      const applicationNo = new URLSearchParams(location.search).get('applicationNo');
+      if (applicationNo) liffUrl.searchParams.set('applicationNo', applicationNo);
+      document.getElementById('openInLineLink').href = liffUrl.toString();
+      document.getElementById('continueInBrowserButton').hidden = !showBrowserLogin;
+      document.getElementById('loginActions').hidden = false;
+    }
     function fillTimes() {
       const select = document.getElementById('pickupTime');
       [['希望なし', '希望なし']].concat(Array.from({ length: 17 }, (_, i) => {
@@ -118,12 +126,7 @@
         if (!liff.isLoggedIn()) {
           if (!liff.isInClient()) {
             setStatus('ホーム画面から開いた場合は、LINEアプリで開くとログイン操作を省略できます。');
-            const openInLineLink = document.getElementById('openInLineLink');
-            const liffUrl = new URL(`https://liff.line.me/${LIFF_ID}`);
-            const applicationNo = new URLSearchParams(location.search).get('applicationNo');
-            if (applicationNo) liffUrl.searchParams.set('applicationNo', applicationNo);
-            openInLineLink.href = liffUrl.toString();
-            document.getElementById('loginActions').hidden = false;
+            showLineOpenLink(true);
             document.getElementById('continueInBrowserButton').addEventListener('click', () => liff.login());
             return;
           }
@@ -147,6 +150,7 @@
         }
       } catch (error) {
         setStatus(`${error.message || '処理に失敗しました。'} 画面を再読み込みしてください。`, true);
+        showLineOpenLink(false);
         console.error(error);
       }
     }
