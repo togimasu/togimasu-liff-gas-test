@@ -25,6 +25,11 @@
     th { color: #596158; background: #f4f5f2; white-space: nowrap; }
     tr:last-child td { border-bottom: 0; }
     .application-link { border: 0; padding: 0; min-height: 0; background: transparent; color: #245e33; text-decoration: underline; font: inherit; font-weight: 700; }
+    .row-actions { display: flex; gap: 6px; }
+    .row-actions button { min-height: 38px; padding: 7px 10px; font-size: 14px; white-space: nowrap; }
+    .payment-button { background: #285d85; }
+    .fee-input { width: 110px; min-height: 38px; border: 1px solid #d8ddd4; border-radius: 7px; padding: 6px 8px; font: inherit; font-size: 14px; }
+    .test-output { overflow-wrap: anywhere; white-space: pre-wrap; padding: 12px; border-radius: 8px; background: #f4f5f2; font-size: 12px; }
     .empty { padding: 24px; text-align: center; color: #646b62; }
     [hidden] { display: none !important; }
     @media (max-width: 540px) { .toolbar { flex-direction: column; } }
@@ -46,9 +51,10 @@
         <button class="secondary" type="button" onclick="signOutFromManager()">ログアウト</button>
       </div>
       <div id="listStatus" class="status" role="status" aria-live="polite"></div>
+      <pre id="squareTestOutput" class="test-output" hidden></pre>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>申込番号</th><th>申込日</th><th>お名前</th><th>受取り希望時間</th><th>本数</th><th>備考</th><th>作業状況</th></tr></thead>
+          <thead><tr><th>申込番号</th><th>申込日</th><th>お名前</th><th>受取り希望時間</th><th>包丁本数</th><th>料金（円）</th><th>備考</th><th>作業状況</th><th>操作</th></tr></thead>
           <tbody id="applicationRows"></tbody>
         </table>
         <div id="emptyState" class="empty" hidden>申込はありません。</div>
@@ -57,6 +63,7 @@
   </main>
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzxseejcXgVipPOB2hO_vs8KCeMe3BB8EqUBIuv_jGptRiJiyoVW6QmLbZmolrbomFDsA/exec';
+    let squarePosConfig = { appId: '', callbackUrl: '' };
     const statusEl = document.getElementById('status');
     const listStatusEl = document.getElementById('listStatus');
     let googleIdToken = '';
@@ -118,6 +125,7 @@
         .then(result => {
           if (!result.success) throw new Error(result.message || '申込一覧を読み込めませんでした。');
           const records = result.records || [];
+          squarePosConfig = result.squareConfig || { appId: '', callbackUrl: '' };
           document.getElementById('listPanel').hidden = false;
           renderApplications(records);
           setStatus(statusEl, '申込一覧を読み込みました。');
@@ -135,18 +143,44 @@
       records.forEach(record => {
         const row = document.createElement('tr');
         const noCell = document.createElement('td');
-        const link = document.createElement('button');
-        link.type = 'button';
-        link.className = 'application-link';
-        link.textContent = record.applicationNo;
-        link.addEventListener('click', () => openPrintPage(record));
-        noCell.appendChild(link);
+        noCell.textContent = record.applicationNo;
         row.appendChild(noCell);
-        [record.applicationDate, record.displayName, record.pickupTime || '希望なし', `${record.knifeCount || 1}本`, record.notes || 'なし', record.workStatus || ''].forEach(value => {
+        [record.applicationDate, record.displayName, record.pickupTime || '希望なし', `${record.knifeCount || 1}本`].forEach(value => {
           const cell = document.createElement('td');
           cell.textContent = value;
           row.appendChild(cell);
         });
+        const feeCell = document.createElement('td');
+        const feeInput = document.createElement('input');
+        feeInput.type = 'number';
+        feeInput.min = '1';
+        feeInput.step = '1';
+        feeInput.inputMode = 'numeric';
+        feeInput.className = 'fee-input';
+        feeInput.setAttribute('aria-label', `${record.applicationNo} の料金（円）`);
+        feeInput.placeholder = '金額を入力';
+        feeCell.appendChild(feeInput);
+        row.appendChild(feeCell);
+        [record.notes || 'なし', record.workStatus || ''].forEach(value => {
+          const cell = document.createElement('td');
+          cell.textContent = value;
+          row.appendChild(cell);
+        });
+        const actionsCell = document.createElement('td');
+        const actions = document.createElement('div');
+        actions.className = 'row-actions';
+        const receptionButton = document.createElement('button');
+        receptionButton.type = 'button';
+        receptionButton.textContent = '受付';
+        receptionButton.addEventListener('click', () => openPrintPage(record));
+        const paymentButton = document.createElement('button');
+        paymentButton.type = 'button';
+        paymentButton.className = 'payment-button';
+        paymentButton.textContent = '決済';
+        paymentButton.addEventListener('click', () => launchSquarePos(record, feeInput.value));
+        actions.append(receptionButton, paymentButton);
+        actionsCell.appendChild(actions);
+        row.appendChild(actionsCell);
         body.appendChild(row);
       });
     }
@@ -156,6 +190,50 @@
       printPageUrl.searchParams.set('payload', JSON.stringify(record));
       const webPrntUrl = `webprnt://starmicronics.com/open?url=${encodeURIComponent(printPageUrl.href)}`;
       window.location.href = webPrntUrl;
+    }
+
+    function launchSquarePos(record, feeValue) {
+      const amount = Number(feeValue);
+      if (!Number.isSafeInteger(amount) || amount < 1) {
+        setStatus(listStatusEl, `${record.applicationNo} の料金を1円以上の整数で入力してください。`, true);
+        return;
+      }
+      if (!squarePosConfig.appId) {
+        setStatus(listStatusEl, 'GAS のスクリプトプロパティに SQUARE_APP_ID を設定してください。', true);
+        return;
+      }
+      const hasCallbackUrl = Boolean(squarePosConfig.callbackUrl);
+      const callbackUrl = squarePosConfig.callbackUrl || `${location.origin}${location.pathname}`;
+      const note = `申込番号: ${record.applicationNo}`;
+      let squareUrl;
+      if (/Android/i.test(navigator.userAgent)) {
+        squareUrl = [
+          'intent:#Intent', 'action=com.squareup.pos.action.CHARGE', 'package=com.squareup',
+          `S.browser_fallback_url=${encodeURIComponent(callbackUrl)}`,
+          `S.com.squareup.pos.WEB_CALLBACK_URI=${encodeURIComponent(callbackUrl)}`,
+          `S.com.squareup.pos.CLIENT_ID=${encodeURIComponent(squarePosConfig.appId)}`,
+          'S.com.squareup.pos.API_VERSION=v2.0', `i.com.squareup.pos.TOTAL_AMOUNT=${amount}`,
+          'S.com.squareup.pos.CURRENCY_CODE=JPY', 'S.com.squareup.pos.TENDER_TYPES=com.squareup.pos.TENDER_CARD',
+          `S.com.squareup.pos.NOTE=${encodeURIComponent(note)}`,
+          `S.com.squareup.pos.REQUEST_METADATA=${encodeURIComponent(record.applicationNo)}`, 'end'
+        ].join(';');
+      } else {
+        const data = {
+          amount_money: { amount, currency_code: 'JPY' }, callback_url: callbackUrl,
+          client_id: squarePosConfig.appId, version: '1.3', notes: note, state: record.applicationNo,
+          options: { supported_tender_types: ['CREDIT_CARD'] }
+        };
+        squareUrl = `square-commerce-v1://payment/create?data=${encodeURIComponent(JSON.stringify(data))}`;
+      }
+      if (!hasCallbackUrl) {
+        const output = document.getElementById('squareTestOutput');
+        output.textContent = `テスト用にSquare起動URLを生成しました（コールバック未設定のため起動はしません）。\n\n${squareUrl}`;
+        output.hidden = false;
+        setStatus(listStatusEl, 'Square起動URLを生成しました。SQUARE_CALLBACK_URL を設定するとSquare POSを起動します。');
+        return;
+      }
+      document.getElementById('squareTestOutput').hidden = true;
+      window.location.href = squareUrl;
     }
 
     function signOutFromManager() {

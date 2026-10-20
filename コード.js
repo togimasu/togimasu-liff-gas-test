@@ -42,11 +42,21 @@ function getAdminApplications(idToken) {
     throw new Error('このGoogleアカウントには管理画面の利用権限がありません。');
   }
   const rows = getSheet().getDataRange().getValues();
-  return rows.slice(1).map(row => {
+  const records = rows.slice(1).map(row => {
     const record = rowToRecord(row);
     delete record.lineId;
     return record;
   }).reverse();
+  return { records: records, squareConfig: getSquarePosConfig() };
+}
+
+/** 管理者向け Square POS 起動設定をスクリプトプロパティから取得する。 */
+function getSquarePosConfig() {
+  const properties = PropertiesService.getScriptProperties();
+  return {
+    appId: properties.getProperty('SQUARE_APP_ID') || '',
+    callbackUrl: properties.getProperty('SQUARE_CALLBACK_URL') || ''
+  };
 }
 
 /** 初回セットアップ時に、エディタから外部通信権限を承認するための関数。 */
@@ -63,7 +73,8 @@ function doPost(e) {
       return response({ success: true, config: getAdminAuthConfig() });
     }
     if (data.action === 'adminList') {
-      return response({ success: true, records: getAdminApplications(data.idToken) });
+      const adminData = getAdminApplications(data.idToken);
+      return response({ success: true, records: adminData.records, squareConfig: adminData.squareConfig });
     }
     const identity = verifyLiffToken(data.idToken);
     let result;
