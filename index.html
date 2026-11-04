@@ -284,6 +284,10 @@
             knifeType: row.querySelector('.knife-type').value,
             knifeCount: row.querySelector('.knife-count').value
           })),
+          knifeType: [...document.querySelectorAll('.knife-item')].map(row =>
+            `${row.querySelector('.knife-type').value} ${row.querySelector('.knife-count').value}本`
+          ).join(' / '),
+          knifeCount: [...document.querySelectorAll('.knife-count')].reduce((sum, input) => sum + Number(input.value), 0),
           notes: document.getElementById('notes').value.trim()
         });
         if (!result.success) throw new Error(result.message || '申込みに失敗しました。');
