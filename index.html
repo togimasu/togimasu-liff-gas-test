@@ -67,6 +67,7 @@
       <label for="notes">備考</label>
       <textarea id="notes" maxlength="1000" placeholder="ご要望があれば入力してください"></textarea>
       <button id="submitButton" type="button">申込む</button>
+      <p id="submitStatus" class="status" role="status" aria-live="polite"></p>
     </section>
 
     <section id="confirmation" class="card" hidden>
@@ -270,7 +271,10 @@
       const invalidInput = knifeInputs.find(input => !input.reportValidity());
       if (invalidInput) return;
       const button = document.getElementById('submitButton');
+      const submitStatus = document.getElementById('submitStatus');
       button.disabled = true;
+      submitStatus.textContent = '申込を送信しています…';
+      submitStatus.classList.remove('error', 'success');
       button.textContent = '申込中…';
       try {
         const result = await callGAS({
@@ -283,8 +287,12 @@
           notes: document.getElementById('notes').value.trim()
         });
         if (!result.success) throw new Error(result.message || '申込みに失敗しました。');
+        submitStatus.textContent = '申込を受け付けました。';
+        submitStatus.classList.add('success');
         location.reload();
       } catch (error) {
+        submitStatus.textContent = `申込を保存できませんでした: ${error.message || '通信エラー'}`;
+        submitStatus.classList.add('error');
         setStatus(`${error.message || '申込みに失敗しました。'} 入力内容を確認して再度お試しください。`, true);
         button.disabled = false;
         button.textContent = '申込';
