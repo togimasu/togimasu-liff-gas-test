@@ -97,6 +97,7 @@
 
     function setStatus(message, isError = false) {
       statusEl.textContent = message;
+      statusEl.hidden = false;
       statusEl.classList.toggle('error', isError);
     }
 
