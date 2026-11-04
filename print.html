@@ -41,6 +41,7 @@
       <div class="row"><div class="label">申込日</div><div id="applicationDate" class="value"></div></div>
       <div class="row"><div class="label">お名前</div><div id="displayName" class="value"></div></div>
       <div class="row"><div class="label">受取り希望時間</div><div id="pickupTime" class="value"></div></div>
+      <div class="row"><div class="label">包丁の種類</div><div id="knifeType" class="value"></div></div>
       <div class="row"><div class="label">本数</div><div id="knifeCount" class="value"></div></div>
       <div class="row"><div class="label">備考</div><div id="notes" class="value"></div></div>
       <div class="qr-section"><p>申込内容をLINEで確認</p><div id="applicationQr" role="img" aria-label="申込内容を開くQRコード"></div></div>
@@ -65,6 +66,7 @@
       document.getElementById('applicationDate').textContent = record.applicationDate || '';
       document.getElementById('displayName').textContent = record.displayName || '';
       document.getElementById('pickupTime').textContent = record.pickupTime || '希望なし';
+      document.getElementById('knifeType').textContent = record.knifeType || '未設定';
       document.getElementById('knifeCount').textContent = `${record.knifeCount || 1}本`;
       document.getElementById('notes').textContent = record.notes || 'なし';
       if (window.QRCode) new QRCode(document.getElementById('applicationQr'), { text: liffUrl.toString(), width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
@@ -91,7 +93,7 @@
         `申込日: ${record.applicationDate || ''}`,
         `お名前: ${record.displayName || ''}`,
         `受取り: ${record.pickupTime || '希望なし'}`,
-        `本数: ${record.knifeCount || 1}本`,
+        `包丁の種類: ${record.knifeType || '未設定'}`,`n        `本数: ${record.knifeCount || 1}本`,
         `備考: ${record.notes || 'なし'}`,
         '------------------------------',
         '\n\n'

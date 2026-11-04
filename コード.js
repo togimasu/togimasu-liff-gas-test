@@ -1,5 +1,5 @@
 const SHEET_NAME = '申込情報';
-const HEADERS = ['申込番号', '申込日時', 'LINE表示名', 'LINE ID', '受取り希望時間', '備考', '作業状況', '本数'];
+const HEADERS = ['申込番号', '申込日時', 'LINE表示名', 'LINE ID', '受取り希望時間', '備考', '作業状況', '本数', '包丁の種類'];
 const LEGACY_HEADERS = HEADERS.slice(0, -1);
 const TIME_ZONE = 'Asia/Tokyo';
 
@@ -168,12 +168,13 @@ function createApplication(data) {
       lineId: String(data.lineId),
       pickupTime: pickupTime,
       knifeCount: knifeCount,
+      knifeType: String(data.knifeType || '').slice(0, 50),
       notes: String(data.notes || '').slice(0, 1000),
-      workStatus: '受付済み'
+      workStatus: '申込中'
     };
     sheet.appendRow([
       record.applicationNo, record.applicationDate, record.displayName,
-      record.lineId, record.pickupTime, record.notes, record.workStatus, record.knifeCount
+      record.lineId, record.pickupTime, record.notes, record.workStatus, record.knifeCount, record.knifeType
     ]);
     return { success: true, record: record };
   } finally {
@@ -227,7 +228,8 @@ function rowToRecord(row) {
     pickupTime: String(row[4] || '希望なし'),
     notes: String(row[5] || ''),
     workStatus: String(row[6] || '受付済み'),
-    knifeCount: Number(row[7]) || 1
+    knifeCount: Number(row[7]) || 1,
+    knifeType: String(row[8] || '')
   };
 }
 
