@@ -1,5 +1,5 @@
 const SHEET_NAME = '申込情報';
-const HEADERS = ['申込番号', '申込日時', 'LINE表示名', 'LINE ID', '受取り希望時間', '備考', '作業状況', '本数', '包丁の種類'];
+const HEADERS = ['申込番号', '申込日時', 'LINE表示名', 'LINE ID', '受取り希望時間', '備考', '作業状況', '本数', '包丁の種類', '包丁内訳'];
 const LEGACY_HEADERS = HEADERS.slice(0, -1);
 const TIME_ZONE = 'Asia/Tokyo';
 
@@ -142,8 +142,17 @@ function createApplication(data) {
   if (!data.lineId || !data.displayName) throw new Error('LINEのプロフィールを取得できませんでした。');
   const pickupTime = String(data.pickupTime || '');
   if (!isValidPickupTime(pickupTime)) throw new Error('受取り希望時間を選択し直してください。');
-  const knifeCount = Number(data.knifeCount);
-  if (!Number.isInteger(knifeCount) || knifeCount < 1) throw new Error('本数は1以上の整数で入力してください。');
+  const knifeItems = Array.isArray(data.knifeItems) && data.knifeItems.length
+    ? data.knifeItems.map(item => ({
+      knifeType: String(item.knifeType || '').slice(0, 50),
+      knifeCount: Number(item.knifeCount)
+    }))
+    : [{ knifeType: String(data.knifeType || '').slice(0, 50), knifeCount: Number(data.knifeCount) }];
+  if (knifeItems.some(item => !item.knifeType || !Number.isInteger(item.knifeCount) || item.knifeCount < 1)) {
+    throw new Error('包丁の種類と本数を正しく入力してください。');
+  }
+  const knifeCount = knifeItems.reduce((sum, item) => sum + item.knifeCount, 0);
+  if (!Number.isSafeInteger(knifeCount)) throw new Error('本数が大きすぎます。');
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -168,13 +177,15 @@ function createApplication(data) {
       lineId: String(data.lineId),
       pickupTime: pickupTime,
       knifeCount: knifeCount,
-      knifeType: String(data.knifeType || '').slice(0, 50),
+      knifeType: knifeItems[0].knifeType,
+      knifeItems: knifeItems,
       notes: String(data.notes || '').slice(0, 1000),
       workStatus: '申込中'
     };
     sheet.appendRow([
       record.applicationNo, record.applicationDate, record.displayName,
-      record.lineId, record.pickupTime, record.notes, record.workStatus, record.knifeCount, record.knifeType
+      record.lineId, record.pickupTime, record.notes, record.workStatus, record.knifeCount,
+      knifeItems[0].knifeType, JSON.stringify(knifeItems)
     ]);
     return { success: true, record: record };
   } finally {
@@ -194,6 +205,8 @@ function getSheet() {
       sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
     } else if (LEGACY_HEADERS.every((value, index) => String(current[index] || '') === value)) {
       sheet.getRange(1, HEADERS.length).setValue(HEADERS[HEADERS.length - 1]);
+    } else if (HEADERS.slice(0, -2).every((value, index) => String(current[index] || '') === value)) {
+      sheet.getRange(1, HEADERS.length - 1, 1, 2).setValues([HEADERS.slice(-2)]);
     } else if (!HEADERS.every((value, index) => String(current[index] || '') === value)) {
       throw new Error('「申込情報」シートの1行目を申込項目の見出しにしてください。');
     }
@@ -220,6 +233,11 @@ function isValidPickupTime(value) {
 }
 
 function rowToRecord(row) {
+  let knifeItems = [];
+  try { knifeItems = JSON.parse(String(row[9] || '[]')); } catch (ignored) {}
+  if (!Array.isArray(knifeItems) || knifeItems.length === 0) {
+    knifeItems = [{ knifeType: String(row[8] || ''), knifeCount: Number(row[7]) || 1 }];
+  }
   return {
     applicationNo: String(row[0]),
     applicationDate: dateKey(row[1]),
@@ -229,7 +247,8 @@ function rowToRecord(row) {
     notes: String(row[5] || ''),
     workStatus: String(row[6] || '受付済み'),
     knifeCount: Number(row[7]) || 1,
-    knifeType: String(row[8] || '')
+    knifeType: String(row[8] || ''),
+    knifeItems: knifeItems
   };
 }
 
