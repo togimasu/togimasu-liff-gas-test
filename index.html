@@ -218,7 +218,7 @@
 
     function showConfirmation(record) {
       document.getElementById('confirmNo').textContent = record.applicationNo;
-      document.getElementById('confirmDate').textContent = record.applicationDate;
+      document.getElementById('confirmDate').textContent = formatApplicationDateTime(record.applicationDate);
       document.getElementById('confirmName').textContent = record.displayName;
       document.getElementById('confirmTime').textContent = formatPickupDateTime(record);
       const knifeItems = record.knifeItems || [{ knifeType: record.knifeType || '未設定', knifeCount: record.knifeCount || 1 }];
@@ -230,8 +230,22 @@
 
     function formatPickupDateTime(record) {
       if (record.pickupTime === '希望なし') return '希望なし';
-      const date = String(record.applicationDate || '').slice(0, 10);
-      return date ? `${date} ${record.pickupTime}` : record.pickupTime;
+      const pickupDateTime = formatDateTime(record.pickupTime);
+      if (pickupDateTime) return pickupDateTime;
+      const applicationDate = formatDateTime(record.applicationDate);
+      const time = String(record.pickupTime || '').match(/\b\d{1,2}:\d{2}\b/);
+      return applicationDate && time ? `${applicationDate.slice(0, 10)} ${time[0].padStart(5, '0')}` : record.pickupTime;
+    }
+
+    function formatApplicationDateTime(value) {
+      return formatDateTime(value) || String(value || '');
+    }
+
+    function formatDateTime(value) {
+      const match = String(value || '').trim().match(/^(\d{4})-?(\d{2})-?(\d{2})(?:[ T]?(\d{1,2}):?(\d{2}))?/);
+      if (!match) return '';
+      const date = `${match[1]}-${match[2]}-${match[3]}`;
+      return match[4] === undefined ? `${date} 00:00` : `${date} ${match[4].padStart(2, '0')}:${match[5]}`;
     }
 
     function openNumberZoom() {
