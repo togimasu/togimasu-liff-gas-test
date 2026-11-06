@@ -189,6 +189,7 @@
     function openPrintPage(record) {
       const printPageUrl = new URL('print.html', location.href);
       printPageUrl.searchParams.set('payload', JSON.stringify(record));
+      printPageUrl.hash = new URLSearchParams({ adminIdToken: googleIdToken }).toString();
       const webPrntUrl = `webprnt://starmicronics.com/open?url=${encodeURIComponent(printPageUrl.href)}`;
       window.location.href = webPrntUrl;
     }

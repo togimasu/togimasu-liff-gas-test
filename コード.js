@@ -20,15 +20,24 @@ function getAdminAuthConfig() {
 
 /** Google IDトークンと許可メール一覧を確認して申込一覧を返す。 */
 function getAdminApplications(idToken) {
+  verifyAdminToken(idToken);
+  const rows = getSheet().getDataRange().getValues();
+  const records = rows.slice(1).map(row => {
+    const record = rowToRecord(row);
+    delete record.lineId;
+    return record;
+  }).reverse();
+  return { records: records, squareConfig: getSquarePosConfig() };
+}
+
+/** 許可された管理者のGoogle IDトークンを検証する。 */
+function verifyAdminToken(idToken) {
   const properties = PropertiesService.getScriptProperties();
   const clientId = properties.getProperty('ADMIN_GOOGLE_CLIENT_ID');
   const allowedEmails = (properties.getProperty('ADMIN_EMAILS') || '')
     .split(',').map(email => email.trim().toLowerCase()).filter(Boolean);
-  if (!clientId || allowedEmails.length === 0) {
-    throw new Error('管理用Google認証が未設定です。');
-  }
+  if (!clientId || allowedEmails.length === 0) throw new Error('管理用Google認証が未設定です。');
   if (!idToken) throw new Error('Googleアカウントでログインしてください。');
-
   const verification = UrlFetchApp.fetch(
     'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken),
     { muteHttpExceptions: true }
@@ -41,13 +50,20 @@ function getAdminApplications(idToken) {
   if (claims.aud !== clientId || !validIssuer || !isEmailVerified || !allowedEmails.includes(email)) {
     throw new Error('このGoogleアカウントには管理画面の利用権限がありません。');
   }
-  const rows = getSheet().getDataRange().getValues();
-  const records = rows.slice(1).map(row => {
-    const record = rowToRecord(row);
-    delete record.lineId;
-    return record;
-  }).reverse();
-  return { records: records, squareConfig: getSquarePosConfig() };
+}
+
+/** 管理者が印刷を開始した申込の作業状況を受付済みにする。 */
+function markApplicationReceived(idToken, applicationNo) {
+  verifyAdminToken(idToken);
+  const targetNo = String(applicationNo || '').trim();
+  if (!targetNo) throw new Error('申込番号がありません。');
+  const sheet = getSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) throw new Error('申込が見つかりません。');
+  const matches = sheet.getRange(2, 1, lastRow - 1, 1).createTextFinder(targetNo).matchEntireCell(true).findNext();
+  if (!matches) throw new Error('申込が見つかりません。');
+  sheet.getRange(matches.getRow(), 7).setValue('受付済み');
+  return { success: true };
 }
 
 /** 管理者向け Square POS 起動設定をスクリプトプロパティから取得する。 */
@@ -75,6 +91,9 @@ function doPost(e) {
     if (data.action === 'adminList') {
       const adminData = getAdminApplications(data.idToken);
       return response({ success: true, records: adminData.records, squareConfig: adminData.squareConfig });
+    }
+    if (data.action === 'adminMarkReceived') {
+      return response({ success: true, ...markApplicationReceived(data.idToken, data.applicationNo) });
     }
     const identity = verifyLiffToken(data.idToken);
     let result;

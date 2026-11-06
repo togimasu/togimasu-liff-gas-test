@@ -60,12 +60,15 @@
     <p id="status" class="status" role="status" aria-live="polite"></p>
   </main>
   <script>
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzxseejcXgVipPOB2hO_vs8KCeMe3BB8EqUBIuv_jGptRiJiyoVW6QmLbZmolrbomFDsA/exec';
     let record = {};
     try {
       record = JSON.parse(new URLSearchParams(location.search).get('payload') || '{}');
     } catch (error) {
       record = {};
     }
+    record.adminIdToken = new URLSearchParams(location.hash.slice(1)).get('adminIdToken') || '';
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
     // StarWebPrintTraderのブラウザー連携コールバックがグローバルのtraderを参照する。
     const liffUrl = new URL('https://liff.line.me/2011920848-fdZ0JLEN');
     if (record.applicationNo) liffUrl.searchParams.set('applicationNo', record.applicationNo);
@@ -86,13 +89,32 @@
       statusEl.classList.add('error');
     }
 
-    function printApplication() {
+    async function printApplication() {
+      const button = document.getElementById('printButton');
+      button.disabled = true;
+      showStatus('受付状況を更新しています…');
+      try {
+        const updateResponse = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'adminMarkReceived',
+            idToken: record.adminIdToken,
+            applicationNo: record.applicationNo
+          })
+        });
+        const updateResult = await updateResponse.json();
+        if (!updateResult.success) throw new Error(updateResult.message || '受付状況を更新できませんでした。');
+      } catch (error) {
+        button.disabled = false;
+        showStatus(error.message || '受付状況を更新できませんでした。管理画面から開き直してください。', true);
+        return;
+      }
       if (!window.StarWebPrintBuilder || !window.StarWebPrintTrader) {
+        button.disabled = false;
         showStatus('Star webPRNT SDKを読み込めません。通信状態を確認してページを開き直してください。', true);
         return;
       }
-      const button = document.getElementById('printButton');
-      button.disabled = true;
       showStatus('プリンターに送信しています…');
       const builder = new StarWebPrintBuilder();
       const request = builder.createInitializationElement({ reset: true });
