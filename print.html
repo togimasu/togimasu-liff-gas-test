@@ -53,7 +53,7 @@
       <div class="row"><div class="label">申込日時</div><div id="applicationDate" class="value"></div></div>
       <div class="row"><div class="label">お名前</div><div id="displayName" class="value"></div></div>
       <div class="row"><div class="label">受取り希望日時</div><div id="pickupTime" class="value"></div></div>
-      <div class="row"><div class="label">包丁の種類・本数</div><div id="knifeSummary" class="value"></div></div>
+      <div class="row"><div class="label">包丁の種類・長さ・本数</div><div id="knifeSummary" class="value"></div></div>
       <div class="row"><div class="label">備考</div><div id="notes" class="value"></div></div>
       <div class="qr-section"><p>申込内容をLINEで確認</p><div id="applicationQr" role="img" aria-label="申込内容を開くQRコード"></div></div>
       <button id="printButton" type="button" onclick="printApplication()">SM-S230iへ印刷</button>
@@ -81,7 +81,7 @@
       document.getElementById('displayName').textContent = record.displayName || '';
       document.getElementById('pickupTime').textContent = formatPickupDateTime(record);
       const knifeItems = record.knifeItems || [{ knifeType: record.knifeType || '未設定', knifeCount: record.knifeCount || 1 }];
-      document.getElementById('knifeSummary').textContent = knifeItems.map(item => `${item.knifeType} ${item.knifeCount}本`).join(' / ');
+      document.getElementById('knifeSummary').textContent = knifeItems.map(item => `${item.knifeType}${item.knifeLength ? ` ${item.knifeLength}` : ''} ${item.knifeCount}本`).join(' / ');
       document.getElementById('notes').textContent = record.notes || 'なし';
       if (window.QRCode) new QRCode(document.getElementById('applicationQr'), { text: liffUrl.toString(), width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
       document.getElementById('content').hidden = false;
@@ -146,7 +146,7 @@
         `申込日時: ${formatApplicationDateTime(record.applicationDate)}`,
         `お名前: ${record.displayName || ''}`,
         `受取り希望日時: ${formatPickupDateTime(record)}`,
-        ...(record.knifeItems || [{ knifeType: record.knifeType || '未設定', knifeCount: record.knifeCount || 1 }]).map(item => `${item.knifeType}: ${item.knifeCount}本`),
+        ...(record.knifeItems || [{ knifeType: record.knifeType || '未設定', knifeLength: '', knifeCount: record.knifeCount || 1 }]).map(item => `${item.knifeType}${item.knifeLength ? ` ${item.knifeLength}` : ''}: ${item.knifeCount}本`),
         `備考: ${record.notes || 'なし'}`,
         '------------------------------'
       ];

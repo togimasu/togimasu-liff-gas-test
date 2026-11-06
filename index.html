@@ -17,9 +17,10 @@
     label { display: block; margin: 18px 0 7px; font-size: 14px; font-weight: 700; }
     .value, input, select, textarea { width: 100%; border: 1px solid #d8ddd4; border-radius: 9px; background: #fff; padding: 12px; font: inherit; font-size: 16px; }
     .value { min-height: 46px; background: #f4f5f2; overflow-wrap: anywhere; }
-    .knife-item { display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: 8px; align-items: end; }
+    .knife-item { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(100px, .8fr) 88px; gap: 8px; align-items: end; }
     .knife-item label { margin-top: 12px; }
     .knife-items { display: grid; gap: 10px; }
+    @media (max-width: 400px) { .knife-item { grid-template-columns: minmax(0, 1fr) 88px; } .knife-item > div:first-child { grid-column: 1 / -1; } }
     .add-knife-item { width: 46px; height: 46px; margin: 0; padding: 0; font-size: 24px; }
     textarea { min-height: 110px; resize: vertical; }
     button { width: 100%; margin-top: 22px; padding: 14px 16px; border: 0; border-radius: 10px; background: #426b3e; color: white; font: inherit; font-size: 16px; font-weight: 700; }
@@ -60,6 +61,7 @@
       <div id="knifeItems" class="knife-items">
         <div class="knife-item">
           <div><label for="knifeType1">包丁の種類</label><select id="knifeType1" class="knife-type" required></select></div>
+          <div><label for="knifeLength1">長さ</label><select id="knifeLength1" class="knife-length" required></select></div>
           <div><label for="knifeCount1">本数</label><input id="knifeCount1" class="knife-count" type="number" min="1" step="1" value="1" required inputmode="numeric"></div>
         </div>
       </div>
@@ -78,7 +80,7 @@
       <div class="row"><div class="key">申込日時</div><div id="confirmDate" class="data"></div></div>
       <div class="row"><div class="key">LINE表示名</div><div id="confirmName" class="data"></div></div>
       <div class="row"><div class="key">受取り希望日時</div><div id="confirmTime" class="data"></div></div>
-      <div class="row"><div class="key">包丁の種類・本数</div><div id="confirmKnives" class="data"></div></div>
+      <div class="row"><div class="key">包丁の種類・長さ・本数</div><div id="confirmKnives" class="data"></div></div>
       <div class="row"><div class="key">備考</div><div id="confirmNotes" class="data"></div></div>
       <div class="row"><div class="key">作業状況</div><div id="confirmStatus" class="data"></div></div>
     </section>
@@ -120,7 +122,8 @@
       });
     }
 
-    const knifeTypes = ['牛刀', '三徳包丁', 'ペティナイフ', '出刃包丁', '柳刃包丁', 'その他'];
+    const knifeTypes = ['牛刀・三徳包丁・ペティナイフ', '出刃包丁', '柳刃包丁'];
+    const knifeLengths = ['12cm', '15cm', '18cm', '21cm', '24cm', '27cm', '30cm'];
     function addKnifeItem() {
       const items = document.getElementById('knifeItems');
       const rowNumber = items.children.length + 1;
@@ -141,6 +144,16 @@
         typeSelect.appendChild(option);
       });
       typeField.append(typeLabel, typeSelect);
+      const lengthField = document.createElement('div');
+      const lengthLabel = document.createElement('label');
+      lengthLabel.htmlFor = `knifeLength${rowNumber}`;
+      lengthLabel.textContent = '長さ';
+      const lengthSelect = document.createElement('select');
+      lengthSelect.id = `knifeLength${rowNumber}`;
+      lengthSelect.className = 'knife-length';
+      lengthSelect.required = true;
+      fillKnifeLengths(lengthSelect);
+      lengthField.append(lengthLabel, lengthSelect);
       const countField = document.createElement('div');
       const countLabel = document.createElement('label');
       countLabel.htmlFor = `knifeCount${rowNumber}`;
@@ -155,8 +168,22 @@
       countInput.required = true;
       countInput.inputMode = 'numeric';
       countField.append(countLabel, countInput);
-      row.append(typeField, countField);
+      row.append(typeField, lengthField, countField);
       items.appendChild(row);
+    }
+    function fillKnifeLengths(select) {
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = '選択';
+      placeholder.disabled = true;
+      placeholder.selected = true;
+      select.appendChild(placeholder);
+      knifeLengths.forEach(length => {
+        const option = document.createElement('option');
+        option.value = length;
+        option.textContent = length;
+        select.appendChild(option);
+      });
     }
     function initializeKnifeInputs() {
       const select = document.querySelector('.knife-type');
@@ -166,6 +193,7 @@
         option.textContent = type;
         select.appendChild(option);
       });
+      fillKnifeLengths(document.querySelector('.knife-length'));
       document.getElementById('addKnifeItemButton').addEventListener('click', addKnifeItem);
     }
 
@@ -222,7 +250,7 @@
       document.getElementById('confirmName').textContent = record.displayName;
       document.getElementById('confirmTime').textContent = formatPickupDateTime(record);
       const knifeItems = record.knifeItems || [{ knifeType: record.knifeType || '未設定', knifeCount: record.knifeCount || 1 }];
-      document.getElementById('confirmKnives').textContent = knifeItems.map(item => `${item.knifeType} ${item.knifeCount}本`).join('\n');
+      document.getElementById('confirmKnives').textContent = knifeItems.map(item => `${item.knifeType}${item.knifeLength ? ` ${item.knifeLength}` : ''} ${item.knifeCount}本`).join('\n');
       document.getElementById('confirmNotes').textContent = record.notes || 'なし';
       document.getElementById('confirmStatus').textContent = record.workStatus;
       document.getElementById('confirmation').hidden = false;
@@ -281,7 +309,7 @@
     });
 
     async function submitApplication(idToken) {
-      const knifeInputs = [...document.querySelectorAll('.knife-type, .knife-count')];
+      const knifeInputs = [...document.querySelectorAll('.knife-type, .knife-length, .knife-count')];
       const invalidInput = knifeInputs.find(input => !input.reportValidity());
       if (invalidInput) return;
       const button = document.getElementById('submitButton');
@@ -296,10 +324,11 @@
           pickupTime: document.getElementById('pickupTime').value,
           knifeItems: [...document.querySelectorAll('.knife-item')].map(row => ({
             knifeType: row.querySelector('.knife-type').value,
+            knifeLength: row.querySelector('.knife-length').value,
             knifeCount: row.querySelector('.knife-count').value
           })),
           knifeType: [...document.querySelectorAll('.knife-item')].map(row =>
-            `${row.querySelector('.knife-type').value} ${row.querySelector('.knife-count').value}本`
+            `${row.querySelector('.knife-type').value} ${row.querySelector('.knife-length').value} ${row.querySelector('.knife-count').value}本`
           ).join(' / '),
           knifeCount: [...document.querySelectorAll('.knife-count')].reduce((sum, input) => sum + Number(input.value), 0),
           notes: document.getElementById('notes').value.trim()

@@ -2,6 +2,8 @@ const SHEET_NAME = '申込情報';
 const HEADERS = ['申込番号', '申込日時', 'LINE表示名', 'LINE ID', '受取り希望時間', '備考', '作業状況', '本数', '包丁の種類', '包丁内訳'];
 const LEGACY_HEADERS = HEADERS.slice(0, -1);
 const TIME_ZONE = 'Asia/Tokyo';
+const KNIFE_TYPES = ['牛刀・三徳包丁・ペティナイフ', '出刃包丁', '柳刃包丁'];
+const KNIFE_LENGTHS = ['12cm', '15cm', '18cm', '21cm', '24cm', '27cm', '30cm'];
 
 /** 申込者向けフォームをGASから直接表示する場合の入口。 */
 function doGet() {
@@ -164,11 +166,12 @@ function createApplication(data) {
   const knifeItems = Array.isArray(data.knifeItems) && data.knifeItems.length
     ? data.knifeItems.map(item => ({
       knifeType: String(item.knifeType || '').slice(0, 50),
+      knifeLength: String(item.knifeLength || ''),
       knifeCount: Number(item.knifeCount)
     }))
-    : [{ knifeType: String(data.knifeType || '').slice(0, 50), knifeCount: Number(data.knifeCount) }];
-  if (knifeItems.some(item => !item.knifeType || !Number.isInteger(item.knifeCount) || item.knifeCount < 1)) {
-    throw new Error('包丁の種類と本数を正しく入力してください。');
+    : [{ knifeType: String(data.knifeType || '').slice(0, 50), knifeLength: String(data.knifeLength || ''), knifeCount: Number(data.knifeCount) }];
+  if (knifeItems.some(item => !KNIFE_TYPES.includes(item.knifeType) || !KNIFE_LENGTHS.includes(item.knifeLength) || !Number.isInteger(item.knifeCount) || item.knifeCount < 1)) {
+    throw new Error('包丁の種類・長さ・本数を正しく選択してください。');
   }
   const knifeCount = knifeItems.reduce((sum, item) => sum + item.knifeCount, 0);
   if (!Number.isSafeInteger(knifeCount)) throw new Error('本数が大きすぎます。');
@@ -197,6 +200,7 @@ function createApplication(data) {
       pickupTime: pickupTime,
       knifeCount: knifeCount,
       knifeType: knifeItems[0].knifeType,
+      knifeLength: knifeItems[0].knifeLength,
       knifeItems: knifeItems,
       notes: String(data.notes || '').slice(0, 1000),
       workStatus: '申込中'
@@ -255,7 +259,7 @@ function rowToRecord(row) {
   let knifeItems = [];
   try { knifeItems = JSON.parse(String(row[9] || '[]')); } catch (ignored) {}
   if (!Array.isArray(knifeItems) || knifeItems.length === 0) {
-    knifeItems = [{ knifeType: String(row[8] || ''), knifeCount: Number(row[7]) || 1 }];
+    knifeItems = [{ knifeType: String(row[8] || ''), knifeLength: '', knifeCount: Number(row[7]) || 1 }];
   }
   return {
     applicationNo: String(row[0]),
