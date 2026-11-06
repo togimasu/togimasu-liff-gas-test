@@ -28,15 +28,15 @@
     .error { color: #a12e25; }
     [hidden] { display: none !important; }
     @media print {
-      @page { margin: 8mm 5mm 14mm; }
+      @page { margin: 8mm 5mm 22mm; }
       body { padding: 0; background: #fff; }
       main { width: 100%; }
       h1 { font-size: 24pt; font-weight: 800; }
-      .card { padding: 8mm 5mm 12mm; box-shadow: none; }
-      .number { font-size: 28pt; font-weight: 800; }
-      .label { color: #333; font-size: 14pt; font-weight: 700; }
-      .value { font-size: 17pt; font-weight: 700; line-height: 1.4; }
-      .qr-section p { color: #333; font-size: 14pt; font-weight: 700; }
+      .card { padding: 8mm 5mm 20mm; box-shadow: none; }
+      .number { font-size: 32pt; font-weight: 900; }
+      .label { color: #222; font-size: 16pt; font-weight: 800; }
+      .value { font-size: 20pt; font-weight: 800; line-height: 1.5; }
+      .qr-section p { color: #222; font-size: 16pt; font-weight: 800; }
       button, .status { display: none !important; }
       .qr-section { break-inside: avoid; }
     }
@@ -149,7 +149,7 @@
       };
       try {
         const qrRequest = builder.createQrCodeElement({ model: 'model2', level: 'level_m', cell: 5, data: liffUrl.toString() });
-        const bottomMargin = builder.createFeedElement({ line: 5 });
+        const bottomMargin = builder.createFeedElement({ line: 10 });
         trader.sendMessage({ request: request + textRequest + qrRequest + bottomMargin });
       } catch (error) {
         button.disabled = false;
