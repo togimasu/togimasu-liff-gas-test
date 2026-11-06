@@ -54,7 +54,7 @@
       <pre id="squareTestOutput" class="test-output" hidden></pre>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>申込番号</th><th>申込日</th><th>お名前</th><th>受取り希望時間</th><th>包丁の種類・本数</th><th>料金（円）</th><th>備考</th><th>作業状況</th><th>操作</th></tr></thead>
+          <thead><tr><th>申込番号</th><th>申込日時</th><th>お名前</th><th>受取り希望日時</th><th>包丁の種類・本数</th><th>料金（円）</th><th>備考</th><th>作業状況</th><th>操作</th></tr></thead>
           <tbody id="applicationRows"></tbody>
         </table>
         <div id="emptyState" class="empty" hidden>申込はありません。</div>
@@ -146,7 +146,7 @@
         noCell.textContent = record.applicationNo;
         row.appendChild(noCell);
         const knifeItems = record.knifeItems || [{ knifeType: record.knifeType || '未設定', knifeCount: record.knifeCount || 1 }];
-        [record.applicationDate, record.displayName, record.pickupTime || '希望なし', knifeItems.map(item => `${item.knifeType} ${item.knifeCount}本`).join(' / ')].forEach(value => {
+        [record.applicationDate, record.displayName, formatPickupDateTime(record), knifeItems.map(item => `${item.knifeType} ${item.knifeCount}本`).join(' / ')].forEach(value => {
           const cell = document.createElement('td');
           cell.textContent = value;
           row.appendChild(cell);
@@ -192,6 +192,12 @@
       printPageUrl.hash = new URLSearchParams({ adminIdToken: googleIdToken }).toString();
       const webPrntUrl = `webprnt://starmicronics.com/open?url=${encodeURIComponent(printPageUrl.href)}`;
       window.location.href = webPrntUrl;
+    }
+
+    function formatPickupDateTime(record) {
+      if (!record.pickupTime || record.pickupTime === '希望なし') return '希望なし';
+      const date = String(record.applicationDate || '').slice(0, 10);
+      return date ? `${date} ${record.pickupTime}` : record.pickupTime;
     }
 
     function launchSquarePos(record, feeValue) {

@@ -50,9 +50,9 @@
     <h1>印刷内容</h1>
     <section id="content" class="card" hidden>
       <p id="applicationNo" class="number"></p>
-      <div class="row"><div class="label">申込日</div><div id="applicationDate" class="value"></div></div>
+      <div class="row"><div class="label">申込日時</div><div id="applicationDate" class="value"></div></div>
       <div class="row"><div class="label">お名前</div><div id="displayName" class="value"></div></div>
-      <div class="row"><div class="label">受取り希望時間</div><div id="pickupTime" class="value"></div></div>
+      <div class="row"><div class="label">受取り希望日時</div><div id="pickupTime" class="value"></div></div>
       <div class="row"><div class="label">包丁の種類・本数</div><div id="knifeSummary" class="value"></div></div>
       <div class="row"><div class="label">備考</div><div id="notes" class="value"></div></div>
       <div class="qr-section"><p>申込内容をLINEで確認</p><div id="applicationQr" role="img" aria-label="申込内容を開くQRコード"></div></div>
@@ -79,7 +79,7 @@
       document.getElementById('applicationNo').textContent = record.applicationNo;
       document.getElementById('applicationDate').textContent = record.applicationDate || '';
       document.getElementById('displayName').textContent = record.displayName || '';
-      document.getElementById('pickupTime').textContent = record.pickupTime || '希望なし';
+      document.getElementById('pickupTime').textContent = formatPickupDateTime(record);
       const knifeItems = record.knifeItems || [{ knifeType: record.knifeType || '未設定', knifeCount: record.knifeCount || 1 }];
       document.getElementById('knifeSummary').textContent = knifeItems.map(item => `${item.knifeType} ${item.knifeCount}本`).join(' / ');
       document.getElementById('notes').textContent = record.notes || 'なし';
@@ -88,6 +88,12 @@
     } else {
       statusEl.textContent = '印刷する申込内容を開けませんでした。管理画面から申込番号を選び直してください。';
       statusEl.classList.add('error');
+    }
+
+    function formatPickupDateTime(record) {
+      if (!record.pickupTime || record.pickupTime === '希望なし') return '希望なし';
+      const date = String(record.applicationDate || '').slice(0, 10);
+      return date ? `${date} ${record.pickupTime}` : record.pickupTime;
     }
 
     async function printApplication() {
@@ -123,9 +129,9 @@
         '包丁研ぎ 受付票',
         '------------------------------',
         `申込番号: ${record.applicationNo}`,
-        `申込日: ${record.applicationDate || ''}`,
+        `申込日時: ${record.applicationDate || ''}`,
         `お名前: ${record.displayName || ''}`,
-        `受取り: ${record.pickupTime || '希望なし'}`,
+        `受取り希望日時: ${formatPickupDateTime(record)}`,
         ...(record.knifeItems || [{ knifeType: record.knifeType || '未設定', knifeCount: record.knifeCount || 1 }]).map(item => `${item.knifeType}: ${item.knifeCount}本`),
         `備考: ${record.notes || 'なし'}`,
         '------------------------------'

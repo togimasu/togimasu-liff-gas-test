@@ -191,7 +191,7 @@ function createApplication(data) {
 
     const record = {
       applicationNo: today + '-' + String(sequence + 1).padStart(3, '0'),
-      applicationDate: today,
+      applicationDate: Utilities.formatDate(new Date(), TIME_ZONE, 'yyyy-MM-dd HH:mm'),
       displayName: String(data.displayName).slice(0, 100),
       lineId: String(data.lineId),
       pickupTime: pickupTime,
@@ -259,7 +259,7 @@ function rowToRecord(row) {
   }
   return {
     applicationNo: String(row[0]),
-    applicationDate: dateKey(row[1]),
+    applicationDate: applicationDateTime(row[1]),
     displayName: String(row[2] || ''),
     lineId: String(row[3] || ''),
     pickupTime: String(row[4] || '希望なし'),
@@ -269,6 +269,15 @@ function rowToRecord(row) {
     knifeType: String(row[8] || ''),
     knifeItems: knifeItems
   };
+}
+
+function applicationDateTime(value) {
+  if (value instanceof Date) return Utilities.formatDate(value, TIME_ZONE, 'yyyy-MM-dd HH:mm');
+  const raw = String(value || '').trim();
+  const dateAndTime = raw.match(/^(\d{4})[-/]?(\d{2})[-/]?(\d{2})[ T]?(\d{2}):(\d{2})/);
+  if (dateAndTime) return `${dateAndTime[1]}-${dateAndTime[2]}-${dateAndTime[3]} ${dateAndTime[4]}:${dateAndTime[5]}`;
+  const dateOnly = raw.match(/^(\d{4})[-/]?(\d{2})[-/]?(\d{2})$/);
+  return dateOnly ? `${dateOnly[1]}-${dateOnly[2]}-${dateOnly[3]} 00:00` : raw;
 }
 
 function response(data) {
