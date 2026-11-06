@@ -17,11 +17,12 @@
     label { display: block; margin: 18px 0 7px; font-size: 14px; font-weight: 700; }
     .value, input, select, textarea { width: 100%; border: 1px solid #d8ddd4; border-radius: 9px; background: #fff; padding: 12px; font: inherit; font-size: 16px; }
     .value { min-height: 46px; background: #f4f5f2; overflow-wrap: anywhere; }
-    .knife-item { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(100px, .8fr) 88px; gap: 8px; align-items: end; }
+    .knife-items { display: grid; gap: 12px; counter-reset: knife-set; }
+    .knife-item { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(100px, .8fr) 88px; gap: 8px; align-items: end; padding: 12px; border: 1px solid #b9cbb4; border-radius: 12px; background: #f4f8f1; counter-increment: knife-set; }
+    .knife-item::before { content: "包丁 " counter(knife-set) " セット"; grid-column: 1 / -1; color: #315b30; font-size: 14px; font-weight: 800; }
     .knife-item label { margin-top: 12px; }
-    .knife-items { display: grid; gap: 10px; }
     @media (max-width: 400px) { .knife-item { grid-template-columns: minmax(0, 1fr) 88px; } .knife-item > div:first-child { grid-column: 1 / -1; } }
-    .add-knife-item { width: 46px; height: 46px; margin: 0; padding: 0; font-size: 24px; }
+    .add-knife-item { width: auto; min-height: 46px; margin: 12px 0 0; padding: 0 16px; font-size: 16px; }
     textarea { min-height: 110px; resize: vertical; }
     button { width: 100%; margin-top: 22px; padding: 14px 16px; border: 0; border-radius: 10px; background: #426b3e; color: white; font: inherit; font-size: 16px; font-weight: 700; }
     button:disabled { opacity: .55; }
@@ -65,7 +66,7 @@
           <div><label for="knifeCount1">本数</label><input id="knifeCount1" class="knife-count" type="number" min="1" step="1" value="1" required inputmode="numeric"></div>
         </div>
       </div>
-      <button id="addKnifeItemButton" class="add-knife-item" type="button" aria-label="包丁の種類と本数の組み合わせを追加">＋</button>
+      <button id="addKnifeItemButton" class="add-knife-item" type="button" aria-label="包丁の種類・長さ・本数をもう1セット追加">＋ もう1セット追加</button>
       <label for="notes">備考</label>
       <textarea id="notes" maxlength="1000" placeholder="ご要望があれば入力してください"></textarea>
       <button id="submitButton" type="button">申込む</button>
