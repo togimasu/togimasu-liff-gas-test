@@ -28,10 +28,11 @@
     .error { color: #a12e25; }
     [hidden] { display: none !important; }
     @media print {
+      @page { margin: 8mm 5mm 14mm; }
       body { padding: 0; background: #fff; }
       main { width: 100%; }
       h1 { font-size: 24pt; font-weight: 800; }
-      .card { padding: 8mm; box-shadow: none; }
+      .card { padding: 8mm 5mm 12mm; box-shadow: none; }
       .number { font-size: 28pt; font-weight: 800; }
       .label { color: #333; font-size: 14pt; font-weight: 700; }
       .value { font-size: 17pt; font-weight: 700; line-height: 1.4; }
@@ -127,10 +128,9 @@
         `受取り: ${record.pickupTime || '希望なし'}`,
         ...(record.knifeItems || [{ knifeType: record.knifeType || '未設定', knifeCount: record.knifeCount || 1 }]).map(item => `${item.knifeType}: ${item.knifeCount}本`),
         `備考: ${record.notes || 'なし'}`,
-        '------------------------------',
-        '\n\n'
+        '------------------------------'
       ];
-      const textRequest = builder.createTextElement({ codepage: 'cp998', linespace: 32, data: lines.join('\n') });
+      const textRequest = builder.createTextElement({ codepage: 'cp998', linespace: 32, emphasis: true, height: 2, data: lines.join('\n') });
       trader = new StarWebPrintTrader({
         url: /Android/i.test(navigator.userAgent)
           ? 'https://localhost:8001/StarWebPRNT/SendMessage'
@@ -148,7 +148,9 @@
         showStatus('プリンターと通信できません。Star webPRNT Browserで開いているか、Bluetooth接続を確認してください。', true);
       };
       try {
-        trader.sendMessage({ request: request + textRequest + builder.createQrCodeElement({ model: 'model2', level: 'level_m', cell: 5, data: liffUrl.toString() }) });
+        const qrRequest = builder.createQrCodeElement({ model: 'model2', level: 'level_m', cell: 5, data: liffUrl.toString() });
+        const bottomMargin = builder.createFeedElement({ line: 5 });
+        trader.sendMessage({ request: request + textRequest + qrRequest + bottomMargin });
       } catch (error) {
         button.disabled = false;
         showStatus(error.message || '印刷に失敗しました。', true);
