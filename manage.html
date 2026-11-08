@@ -20,7 +20,7 @@
     .card { margin-top: 18px; padding: 18px; border-radius: 14px; background: #fff; box-shadow: 0 4px 18px #26331a12; }
     .status.error { color: #a12e25; }
     .table-wrap { overflow-x: auto; margin-top: 18px; background: white; border-radius: 12px; }
-    table { width: 100%; border-collapse: collapse; min-width: 700px; }
+    table { width: 100%; border-collapse: collapse; min-width: 900px; }
     th, td { padding: 12px 10px; border-bottom: 1px solid #eceee9; text-align: left; vertical-align: top; font-size: 14px; }
     th { color: #596158; background: #f4f5f2; white-space: nowrap; }
     tr:last-child td { border-bottom: 0; }
@@ -29,6 +29,9 @@
     .row-actions button { min-height: 38px; padding: 7px 10px; font-size: 14px; white-space: nowrap; }
     .payment-button { background: #285d85; }
     .fee-input { width: 110px; min-height: 38px; border: 1px solid #d8ddd4; border-radius: 7px; padding: 6px 8px; font: inherit; font-size: 14px; }
+    .return-date-cell { min-width: 220px; }
+    .return-date-input { width: 190px; min-height: 38px; border: 1px solid #d8ddd4; border-radius: 7px; padding: 6px 8px; font: inherit; font-size: 14px; }
+    .return-date-save { min-height: 34px; margin-top: 6px; padding: 6px 10px; font-size: 13px; }
     .test-output { overflow-wrap: anywhere; white-space: pre-wrap; padding: 12px; border-radius: 8px; background: #f4f5f2; font-size: 12px; }
     .empty { padding: 24px; text-align: center; color: #646b62; }
     [hidden] { display: none !important; }
@@ -54,7 +57,7 @@
       <pre id="squareTestOutput" class="test-output" hidden></pre>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>申込番号</th><th>申込日時</th><th>お名前</th><th>受取り希望日時</th><th>包丁の種類・長さ・本数</th><th>料金（円）</th><th>備考</th><th>作業状況</th><th>操作</th></tr></thead>
+          <thead><tr><th>申込番号</th><th>申込日時</th><th>お名前</th><th>受取り希望日時</th><th>包丁の種類・長さ・本数</th><th>料金（円）</th><th>備考</th><th>返却日時</th><th>作業状況</th><th>操作</th></tr></thead>
           <tbody id="applicationRows"></tbody>
         </table>
         <div id="emptyState" class="empty" hidden>申込はありません。</div>
@@ -66,7 +69,9 @@
     let squarePosConfig = { appId: '', callbackUrl: '' };
     const statusEl = document.getElementById('status');
     const listStatusEl = document.getElementById('listStatus');
-    let googleIdToken = '';
+    let googleIdToken = sessionStorage.getItem('managerGoogleIdToken') || '';
+    const applicationRecords = new Map();
+    const pendingPaymentKey = 'squarePendingPayment';
 
     function setStatus(element, message, isError = false) {
       element.textContent = message;
@@ -107,6 +112,7 @@
 
     function handleGoogleCredential(credentialResponse) {
       googleIdToken = credentialResponse.credential || '';
+      sessionStorage.setItem('managerGoogleIdToken', googleIdToken);
       loadApplications();
     }
 
@@ -138,6 +144,8 @@
 
     function renderApplications(records) {
       const body = document.getElementById('applicationRows');
+      applicationRecords.clear();
+      records.forEach(record => applicationRecords.set(record.applicationNo, record));
       body.replaceChildren();
       document.getElementById('emptyState').hidden = records.length > 0;
       records.forEach(record => {
@@ -162,11 +170,26 @@
         feeInput.placeholder = '金額を入力';
         feeCell.appendChild(feeInput);
         row.appendChild(feeCell);
-        [record.notes || 'なし', record.workStatus || ''].forEach(value => {
-          const cell = document.createElement('td');
-          cell.textContent = value;
-          row.appendChild(cell);
-        });
+        const notesCell = document.createElement('td');
+        notesCell.textContent = record.notes || 'なし';
+        row.appendChild(notesCell);
+        const returnDateCell = document.createElement('td');
+        returnDateCell.className = 'return-date-cell';
+        const returnDateInput = document.createElement('input');
+        returnDateInput.type = 'datetime-local';
+        returnDateInput.className = 'return-date-input';
+        returnDateInput.value = record.returnDateTime || '';
+        returnDateInput.setAttribute('aria-label', `${record.applicationNo} の返却日時`);
+        const returnDateSave = document.createElement('button');
+        returnDateSave.type = 'button';
+        returnDateSave.className = 'return-date-save';
+        returnDateSave.textContent = '保存';
+        returnDateSave.addEventListener('click', () => saveReturnDate(record, returnDateInput, returnDateSave));
+        returnDateCell.append(returnDateInput, returnDateSave);
+        row.appendChild(returnDateCell);
+        const workStatusCell = document.createElement('td');
+        workStatusCell.textContent = record.workStatus || '';
+        row.appendChild(workStatusCell);
         const actionsCell = document.createElement('td');
         const actions = document.createElement('div');
         actions.className = 'row-actions';
@@ -177,9 +200,18 @@
         const paymentButton = document.createElement('button');
         paymentButton.type = 'button';
         paymentButton.className = 'payment-button';
-        paymentButton.textContent = '決済';
+        paymentButton.textContent = record.paymentStatus === '決済済み' ? '決済済み' : '決済';
+        paymentButton.disabled = record.paymentStatus === '決済済み';
         paymentButton.addEventListener('click', () => launchSquarePos(record, feeInput.value));
         actions.append(receptionButton, paymentButton);
+        if (record.paymentStatus === '決済済み') {
+          const reprintButton = document.createElement('button');
+          reprintButton.type = 'button';
+          reprintButton.className = 'secondary';
+          reprintButton.textContent = '領収書再印刷';
+          reprintButton.addEventListener('click', () => openReceiptPage(record));
+          actions.appendChild(reprintButton);
+        }
         actionsCell.appendChild(actions);
         row.appendChild(actionsCell);
         body.appendChild(row);
@@ -192,6 +224,74 @@
       printPageUrl.hash = new URLSearchParams({ adminIdToken: googleIdToken }).toString();
       const webPrntUrl = `webprnt://starmicronics.com/open?url=${encodeURIComponent(printPageUrl.href)}`;
       window.location.href = webPrntUrl;
+    }
+
+    function openReceiptPage(record) {
+      const url = new URL('print.html', location.href);
+      url.searchParams.set('payload', JSON.stringify(record));
+      url.searchParams.set('mode', 'receipt');
+      url.hash = new URLSearchParams({ adminIdToken: googleIdToken }).toString();
+      window.location.href = `webprnt://starmicronics.com/open?url=${encodeURIComponent(url.href)}`;
+    }
+
+    function handleSquareCallback() {
+      const query = new URLSearchParams(location.search);
+      let result = {};
+      const raw = query.get('data');
+      if (raw) { try { result = JSON.parse(raw); } catch (ignored) {} }
+      for (const [key, value] of query.entries()) {
+        if (key.startsWith('com.squareup.pos.')) result[key.slice('com.squareup.pos.'.length).toLowerCase()] = value;
+      }
+      if (!raw && !Object.keys(result).length) return;
+      const pending = JSON.parse(sessionStorage.getItem(pendingPaymentKey) || 'null');
+      history.replaceState(null, '', location.pathname);
+      if (!pending) { setStatus(listStatusEl, '決済結果を受信しましたが、申込情報がありません。', true); return; }
+      sessionStorage.removeItem(pendingPaymentKey);
+      if (result.error_code || result.error_description || result.ERROR_CODE) {
+        setStatus(listStatusEl, `Square決済は完了していません: ${result.error_description || result.error_code || 'キャンセル'}`, true);
+        return;
+      }
+      if (!result.transaction_id && !result.server_transaction_id && !result.client_transaction_id) {
+        setStatus(listStatusEl, 'Squareから決済完了を確認できませんでした。シートは更新していません。', true);
+        return;
+      }
+      fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'adminMarkPaid', idToken: googleIdToken, applicationNo: pending.applicationNo,
+          amount: pending.amount, transactionId: result.transaction_id || result.server_transaction_id || result.client_transaction_id })
+      }).then(r => r.json()).then(data => {
+        if (!data.success) throw new Error(data.message || '決済状態を保存できませんでした。');
+        pending.paymentStatus = '決済済み'; pending.paidAmount = pending.amount;
+        const record = pending.record || applicationRecords.get(pending.applicationNo) || { applicationNo: pending.applicationNo };
+        record.paymentStatus = '決済済み'; record.paidAmount = pending.amount; record.paidAt = new Date().toLocaleString('ja-JP');
+        openReceiptPage(record);
+        setStatus(listStatusEl, `${pending.applicationNo} の決済を記録しました。`);
+        loadApplications();
+      }).catch(error => setStatus(listStatusEl, error.message, true));
+    }
+
+    async function saveReturnDate(record, input, button) {
+      button.disabled = true;
+      setStatus(listStatusEl, `${record.applicationNo} の返却日時を保存しています…`);
+      try {
+        const response = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'adminSetReturnDate',
+            idToken: googleIdToken,
+            applicationNo: record.applicationNo,
+            returnDateTime: input.value
+          })
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.message || '返却日時を保存できませんでした。');
+        record.returnDateTime = result.returnDateTime || '';
+        setStatus(listStatusEl, `${record.applicationNo} の返却日時を保存しました。`);
+      } catch (error) {
+        setStatus(listStatusEl, error.message || '返却日時を保存できませんでした。', true);
+      } finally {
+        button.disabled = false;
+      }
     }
 
     function formatPickupDateTime(record) {
@@ -228,7 +328,9 @@
       }
       const appId = squarePosConfig.appId || 'TEST_APPLICATION_ID';
       const callbackUrl = squarePosConfig.callbackUrl || `${location.origin}${location.pathname}`;
-      const note = `申込番号: ${record.applicationNo}`;
+      const itemName = (record.knifeItems || []).map(item => `${item.knifeType}${item.knifeLength ? ` ${item.knifeLength}` : ''} ${item.knifeCount}本`).join(' / ') || record.knifeType || '商品';
+      const note = `${itemName} / 申込番号: ${record.applicationNo}`;
+      sessionStorage.setItem(pendingPaymentKey, JSON.stringify({ applicationNo: record.applicationNo, amount, record }));
       let squareUrl;
       if (/Android/i.test(navigator.userAgent)) {
         squareUrl = [
@@ -245,7 +347,7 @@
         const data = {
           amount_money: { amount, currency_code: 'JPY' }, callback_url: callbackUrl,
           client_id: appId, version: '1.3', notes: note, state: record.applicationNo,
-          options: { supported_tender_types: ['CREDIT_CARD'] }
+          options: { supported_tender_types: ['CREDIT_CARD'], auto_return: true }
         };
         squareUrl = `square-commerce-v1://payment/create?data=${encodeURIComponent(JSON.stringify(data))}`;
       }
@@ -263,11 +365,13 @@
 
     function signOutFromManager() {
       googleIdToken = '';
+      sessionStorage.removeItem('managerGoogleIdToken');
       document.getElementById('listPanel').hidden = true;
       setStatus(statusEl, 'ログアウトしました。Googleアカウントでログインしてください。');
     }
 
     initializeGoogleSignIn();
+    handleSquareCallback();
   </script>
 </body>
 </html>

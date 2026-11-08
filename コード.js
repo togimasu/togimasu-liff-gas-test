@@ -1,6 +1,7 @@
 const SHEET_NAME = '申込情報';
-const HEADERS = ['申込番号', '申込日時', 'LINE表示名', 'LINE ID', '受取り希望時間', '備考', '作業状況', '本数', '包丁の種類', '包丁内訳'];
-const LEGACY_HEADERS = HEADERS.slice(0, -1);
+const BASE_HEADERS = ['申込番号', '申込日時', 'LINE表示名', 'LINE ID', '受取り希望時間', '備考', '作業状況', '本数', '包丁の種類', '包丁内訳'];
+const HEADERS = [...BASE_HEADERS, '返却日時'];
+const PAYMENT_HEADERS = [...HEADERS, '決済状況', '決済金額', 'Square取引ID', '決済日時'];
 const TIME_ZONE = 'Asia/Tokyo';
 const KNIFE_TYPES = ['牛刀・三徳包丁・ペティナイフ', '出刃包丁', '柳刃包丁'];
 const KNIFE_LENGTHS = ['12cm', '15cm', '18cm', '21cm', '24cm', '27cm', '30cm'];
@@ -68,6 +69,42 @@ function markApplicationReceived(idToken, applicationNo) {
   return { success: true };
 }
 
+/** 管理者が申込の返却日時を保存する。 */
+function setApplicationReturnDate(idToken, applicationNo, returnDateTime) {
+  verifyAdminToken(idToken);
+  const targetNo = String(applicationNo || '').trim();
+  const dateTime = String(returnDateTime || '').trim();
+  if (!targetNo) throw new Error('申込番号がありません。');
+  if (dateTime && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(dateTime)) {
+    throw new Error('返却日時を正しく入力してください。');
+  }
+  const sheet = getSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) throw new Error('申込が見つかりません。');
+  const matches = sheet.getRange(2, 1, lastRow - 1, 1).createTextFinder(targetNo).matchEntireCell(true).findNext();
+  if (!matches) throw new Error('申込が見つかりません。');
+  sheet.getRange(matches.getRow(), 11).setValue(dateTime);
+  return { success: true, returnDateTime: dateTime };
+}
+
+function markApplicationPaid(idToken, applicationNo, amount, transactionId) {
+  verifyAdminToken(idToken);
+  const targetNo = String(applicationNo || '').trim();
+  const paidAmount = Number(amount);
+  if (!targetNo || !Number.isSafeInteger(paidAmount) || paidAmount < 1) throw new Error('申込番号または決済金額が不正です。');
+  const sheet = getSheet();
+  const lastRow = sheet.getLastRow();
+  const match = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, 1).createTextFinder(targetNo).matchEntireCell(true).findNext() : null;
+  if (!match) throw new Error('申込が見つかりません。');
+  const row = match.getRow();
+  if (String(sheet.getRange(row, 12).getValue()) === '決済済み') {
+    if (Number(sheet.getRange(row, 13).getValue()) !== paidAmount) throw new Error('この申込は別の金額で決済済みです。');
+    return { success: true, alreadyPaid: true };
+  }
+  sheet.getRange(row, 12, 1, 4).setValues([['決済済み', paidAmount, String(transactionId || ''), Utilities.formatDate(new Date(), TIME_ZONE, 'yyyy-MM-dd HH:mm:ss')]]);
+  return { success: true };
+}
+
 /** 管理者向け Square POS 起動設定をスクリプトプロパティから取得する。 */
 function getSquarePosConfig() {
   const properties = PropertiesService.getScriptProperties();
@@ -96,6 +133,12 @@ function doPost(e) {
     }
     if (data.action === 'adminMarkReceived') {
       return response({ success: true, ...markApplicationReceived(data.idToken, data.applicationNo) });
+    }
+    if (data.action === 'adminMarkPaid') {
+      return response({ success: true, ...markApplicationPaid(data.idToken, data.applicationNo, data.amount, data.transactionId) });
+    }
+    if (data.action === 'adminSetReturnDate') {
+      return response({ success: true, ...setApplicationReturnDate(data.idToken, data.applicationNo, data.returnDateTime) });
     }
     const identity = verifyLiffToken(data.idToken);
     let result;
@@ -220,18 +263,16 @@ function getSheet() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = spreadsheet.getSheetByName(SHEET_NAME);
   if (!sheet) sheet = spreadsheet.insertSheet(SHEET_NAME);
-  if (sheet.getLastRow() === 0) sheet.appendRow(HEADERS);
+  if (sheet.getLastRow() === 0) sheet.appendRow(PAYMENT_HEADERS);
   else {
-    const current = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), LEGACY_HEADERS.length)).getValues()[0];
-    const sampleHeader = ['申込番号', 'LINE ID', 'LINE表示名'];
-    if (sampleHeader.every((value, index) => String(current[index] || '') === value)) {
-      sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-    } else if (LEGACY_HEADERS.every((value, index) => String(current[index] || '') === value)) {
-      sheet.getRange(1, HEADERS.length).setValue(HEADERS[HEADERS.length - 1]);
-    } else if (HEADERS.slice(0, -2).every((value, index) => String(current[index] || '') === value)) {
-      sheet.getRange(1, HEADERS.length - 1, 1, 2).setValues([HEADERS.slice(-2)]);
-    } else if (!HEADERS.every((value, index) => String(current[index] || '') === value)) {
+    const current = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), BASE_HEADERS.length)).getValues()[0];
+    const legacyOrder = ['申込番号', 'LINE ID', 'LINE表示名'];
+    if (legacyOrder.every((value, index) => String(current[index] || '') === value)) {
+      sheet.getRange(1, 1, 1, PAYMENT_HEADERS.length).setValues([PAYMENT_HEADERS]);
+    } else if (!BASE_HEADERS.slice(0, -2).every((value, index) => String(current[index] || '') === value)) {
       throw new Error('「申込情報」シートの1行目を申込項目の見出しにしてください。');
+    } else {
+      sheet.getRange(1, 1, 1, PAYMENT_HEADERS.length).setValues([PAYMENT_HEADERS]);
     }
   }
   return sheet;
@@ -271,8 +312,21 @@ function rowToRecord(row) {
     workStatus: String(row[6] || '受付済み'),
     knifeCount: Number(row[7]) || 1,
     knifeType: String(row[8] || ''),
-    knifeItems: knifeItems
+    knifeItems: knifeItems,
+    returnDateTime: returnDateTimeForInput(row[10]),
+    paymentStatus: String(row[11] || ''),
+    paidAmount: Number(row[12]) || 0,
+    squareTransactionId: String(row[13] || ''),
+    paidAt: String(row[14] || '')
   };
+}
+
+function returnDateTimeForInput(value) {
+  if (value instanceof Date) return Utilities.formatDate(value, TIME_ZONE, "yyyy-MM-dd'T'HH:mm");
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/);
+  return match ? `${match[1]}T${match[2]}` : raw.slice(0, 16);
 }
 
 function applicationDateTime(value) {

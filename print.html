@@ -53,6 +53,7 @@
       <div class="row"><div class="label">申込日時</div><div id="applicationDate" class="value"></div></div>
       <div class="row"><div class="label">お名前</div><div id="displayName" class="value"></div></div>
       <div class="row"><div class="label">受取り希望日時</div><div id="pickupTime" class="value"></div></div>
+      <div class="row"><div class="label">返却日時</div><div id="returnDateTime" class="value"></div></div>
       <div class="row"><div class="label">包丁の種類・長さ・本数</div><div id="knifeSummary" class="value"></div></div>
       <div class="row"><div class="label">備考</div><div id="notes" class="value"></div></div>
       <div class="qr-section"><p>申込内容をLINEで確認</p><div id="applicationQr" role="img" aria-label="申込内容を開くQRコード"></div></div>
@@ -63,6 +64,7 @@
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzxseejcXgVipPOB2hO_vs8KCeMe3BB8EqUBIuv_jGptRiJiyoVW6QmLbZmolrbomFDsA/exec';
     let record = {};
+    const isReceipt = new URLSearchParams(location.search).get('mode') === 'receipt';
     try {
       record = JSON.parse(new URLSearchParams(location.search).get('payload') || '{}');
     } catch (error) {
@@ -76,15 +78,25 @@
     var trader;
     const statusEl = document.getElementById('status');
     if (record.applicationNo) {
+      document.querySelector('h1').textContent = isReceipt ? '領収書' : '印刷内容';
       document.getElementById('applicationNo').textContent = record.applicationNo;
       document.getElementById('applicationDate').textContent = formatApplicationDateTime(record.applicationDate);
       document.getElementById('displayName').textContent = record.displayName || '';
       document.getElementById('pickupTime').textContent = formatPickupDateTime(record);
+      document.getElementById('returnDateTime').textContent = formatReturnDateTime(record.returnDateTime);
       const knifeItems = record.knifeItems || [{ knifeType: record.knifeType || '未設定', knifeCount: record.knifeCount || 1 }];
       document.getElementById('knifeSummary').textContent = knifeItems.map(item => `${item.knifeType}${item.knifeLength ? ` ${item.knifeLength}` : ''} ${item.knifeCount}本`).join(' / ');
       document.getElementById('notes').textContent = record.notes || 'なし';
+      if (isReceipt) {
+        const amountRow = document.createElement('div'); amountRow.className = 'row';
+        const label = document.createElement('div'); label.className = 'label'; label.textContent = 'お支払い金額';
+        const value = document.createElement('div'); value.className = 'value'; value.textContent = `¥${Number(record.paidAmount || 0).toLocaleString('ja-JP')}`;
+        amountRow.append(label, value); document.querySelector('.card').insertBefore(amountRow, document.querySelector('.qr-section'));
+        document.getElementById('printButton').textContent = '領収書を印刷';
+      }
       if (window.QRCode) new QRCode(document.getElementById('applicationQr'), { text: liffUrl.toString(), width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
       document.getElementById('content').hidden = false;
+      if (isReceipt) setTimeout(printApplication, 250);
     } else {
       statusEl.textContent = '印刷する申込内容を開けませんでした。管理画面から申込番号を選び直してください。';
       statusEl.classList.add('error');
@@ -103,6 +115,10 @@
       return formatDateTime(value) || String(value || '');
     }
 
+    function formatReturnDateTime(value) {
+      return value ? String(value).replace('T', ' ') : '未設定';
+    }
+
     function formatDateTime(value) {
       const match = String(value || '').trim().match(/^(\d{4})-?(\d{2})-?(\d{2})(?:[ T]?(\d{1,2}):?(\d{2}))?/);
       if (!match) return '';
@@ -115,6 +131,7 @@
       button.disabled = true;
       showStatus('受付状況を更新しています…');
       try {
+        if (!isReceipt) {
         const updateResponse = await fetch(GAS_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -126,6 +143,7 @@
         });
         const updateResult = await updateResponse.json();
         if (!updateResult.success) throw new Error(updateResult.message || '受付状況を更新できませんでした。');
+        }
       } catch (error) {
         button.disabled = false;
         showStatus(error.message || '受付状況を更新できませんでした。管理画面から開き直してください。', true);
@@ -140,12 +158,14 @@
       const builder = new StarWebPrintBuilder();
       const request = builder.createInitializationElement({ reset: true });
       const lines = [
-        '包丁研ぎ 受付票',
+        isReceipt ? '領収書' : '包丁研ぎ 受付票',
         '------------------------------',
         `申込番号: ${record.applicationNo}`,
         `申込日時: ${formatApplicationDateTime(record.applicationDate)}`,
         `お名前: ${record.displayName || ''}`,
+        ...(isReceipt ? [`お支払い金額: ¥${Number(record.paidAmount || 0).toLocaleString('ja-JP')}`, '但し 商品代として', `決済日: ${record.paidAt || ''}`] : []),
         `受取り希望日時: ${formatPickupDateTime(record)}`,
+        `返却日時: ${formatReturnDateTime(record.returnDateTime)}`,
         ...(record.knifeItems || [{ knifeType: record.knifeType || '未設定', knifeLength: '', knifeCount: record.knifeCount || 1 }]).map(item => `${item.knifeType}${item.knifeLength ? ` ${item.knifeLength}` : ''}: ${item.knifeCount}本`),
         `備考: ${record.notes || 'なし'}`,
         '------------------------------'
