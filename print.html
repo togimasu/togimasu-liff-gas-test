@@ -170,7 +170,7 @@
         `備考: ${record.notes || 'なし'}`,
         '------------------------------'
       ];
-      const textRequest = builder.createTextElement({ codepage: 'cp998', linespace: 32, emphasis: true, height: 2, data: lines.join('\n') });
+      const textRequest = builder.createTextElement({ codepage: 'cp998', linespace: 32, emphasis: true, width: 2, height: 2, data: lines.join('\n') });
       trader = new StarWebPrintTrader({
         url: /Android/i.test(navigator.userAgent)
           ? 'https://localhost:8001/StarWebPRNT/SendMessage'
